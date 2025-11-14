@@ -104,6 +104,7 @@ button:active {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
 .calendar-day-labels {
@@ -119,6 +120,10 @@ button:active {
   background: #22c55e !important;
   color: black !important;
   font-weight: bold;
+}
+
+.calendar-day.selected {
+  outline: 2px solid #facc15;
 }
 
 /* Session logs */
@@ -145,8 +150,22 @@ input::placeholder {
   color: #6b7280;
 }
 
-/* Overlay for choosing date */
-#assignOverlay {
+/* Sets inside exercises */
+.set-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1.5fr;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.set-row span {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* Overlay base style (used for assign + admin) */
+.overlay {
   position: fixed;
   inset: 0;
   background: rgba(15,23,42,0.9);
@@ -211,6 +230,35 @@ input::placeholder {
   padding-left: 15px;
   margin-top: -5px;
 }
+
+/* Details card */
+#calendarDetails h3 {
+  padding-left: 0;
+  margin-top: 0;
+}
+
+details {
+  margin: 5px 0;
+  background: #020617;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+details summary {
+  cursor: pointer;
+}
+
+/* Small labels */
+.small-label {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* Nutrition date label */
+.nut-date-label {
+  padding-left: 15px;
+  font-size: 13px;
+  color: #9ca3af;
+}
 </style>
 </head>
 
@@ -222,13 +270,13 @@ input::placeholder {
   <button id="tabBtn-calendar" onclick="showTab('calendar')">Calendar</button>
   <button id="tabBtn-nutrition" onclick="showTab('nutrition')">Nutrition</button>
   <button id="tabBtn-countdown" onclick="showTab('countdown')">Countdown</button>
-  <button onclick="adminLogin()">Admin</button>
+  <button id="adminBtn" onclick="adminButtonClick()">Admin</button>
 </div>
 
 <!-- -------------------- WORKOUT TAB -------------------- -->
 <div id="workout" class="container">
   <h1 class="editable">Workout Tracker</h1>
-  <p class="admin-hint">After filling your session, hit “Save Session” and then pick the day in the calendar popup.</p>
+  <p class="admin-hint">Fill sets for each exercise. When you hit “Save Session”, you’ll choose the day on a calendar.</p>
 
   <div class="card">
     <h2 class="editable">Select Workout Day</h2>
@@ -264,10 +312,16 @@ input::placeholder {
   </div>
 
   <div class="calendar-day-labels">
-    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    <div>Sun</div><div>Mon</div><div>Tue</div>
+    <div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
   </div>
 
   <div class="calendar-grid" id="calendarGrid"></div>
+
+  <div class="card">
+    <h2 class="editable">Details</h2>
+    <div id="calendarDetails"></div>
+  </div>
 </div>
 
 <!-- -------------------- NUTRITION TAB -------------------- -->
@@ -276,6 +330,8 @@ input::placeholder {
 
   <div class="card">
     <h2 class="editable">Daily Intake</h2>
+    <div class="nut-date-label">Nutrition date:</div>
+    <input id="nutDate" type="date">
     <input id="cal" type="number" placeholder="Calories">
     <input id="pro" type="number" placeholder="Protein (g)">
     <input id="carb" type="number" placeholder="Carbs (g)">
@@ -307,7 +363,7 @@ input::placeholder {
 </div>
 
 <!-- -------------------- ASSIGN DATE OVERLAY -------------------- -->
-<div id="assignOverlay">
+<div id="assignOverlay" class="overlay">
   <div class="assign-card">
     <div class="assign-header">
       <h3>Assign Session to a Day</h3>
@@ -321,7 +377,8 @@ input::placeholder {
       <button onclick="assignNextMonth()">▶</button>
     </div>
     <div class="calendar-day-labels">
-      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      <div>Sun</div><div>Mon</div><div>Tue</div>
+      <div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
     </div>
     <div class="calendar-grid" id="assignCalendarGrid"></div>
     <div class="assign-footer">
@@ -330,23 +387,101 @@ input::placeholder {
   </div>
 </div>
 
+<!-- -------------------- ADMIN LOGIN OVERLAY -------------------- -->
+<div id="adminOverlay" class="overlay">
+  <div class="assign-card">
+    <div class="assign-header">
+      <h3>Admin Login</h3>
+      <button style="width:auto;background:#1f2937;padding:6px 10px;font-size:13px;"
+              onclick="closeAdminOverlay()">X</button>
+    </div>
+    <p class="assign-help">Enter your username and password. Username is not case-sensitive.</p>
+    <input id="adminUsername" type="text" placeholder="Username">
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <input id="adminPassword" type="password" placeholder="Password" style="flex:1;">
+      <button type="button" id="adminPwToggle"
+              style="width:auto;padding:6px 10px;font-size:12px;background:#1f2937;"
+              onclick="toggleAdminPasswordVisibility()">Show</button>
+    </div>
+    <div class="assign-footer" style="margin-top:12px;">
+      <button onclick="submitAdminLogin()" style="background:#22c55e;">Login</button>
+      <button onclick="closeAdminOverlay()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- -------------------- SCRIPT -------------------- -->
 <script>
+/* -------------------- HELPERS -------------------- */
+function todayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /* -------------------- ADMIN MODE -------------------- */
 let adminEnabled = false;
 
-function adminLogin() {
-  const u = prompt("Username:");
-  const p = prompt("Password:");
+function adminButtonClick() {
+  if (adminEnabled) {
+    exitAdminMode();
+  } else {
+    openAdminOverlay();
+  }
+}
+
+function openAdminOverlay() {
+  document.getElementById("adminUsername").value = "";
+  document.getElementById("adminPassword").value = "";
+  const pwInput = document.getElementById("adminPassword");
+  pwInput.type = "password";
+  const toggle = document.getElementById("adminPwToggle");
+  toggle.textContent = "Show";
+  document.getElementById("adminOverlay").style.display = "flex";
+}
+
+function closeAdminOverlay() {
+  document.getElementById("adminOverlay").style.display = "none";
+}
+
+function toggleAdminPasswordVisibility() {
+  const input = document.getElementById("adminPassword");
+  const toggle = document.getElementById("adminPwToggle");
+  if (input.type === "password") {
+    input.type = "text";
+    toggle.textContent = "Hide";
+  } else {
+    input.type = "password";
+    toggle.textContent = "Show";
+  }
+}
+
+function submitAdminLogin() {
+  const u = (document.getElementById("adminUsername").value || "").trim().toLowerCase();
+  const p = (document.getElementById("adminPassword").value || "").trim();
+
   if (u === "amirf4704" && p === "Gymbro4704") {
     adminEnabled = true;
     document.querySelectorAll(".editable").forEach(el => {
       el.setAttribute("contenteditable", "true");
     });
+    document.getElementById("adminBtn").textContent = "Exit Admin";
+    closeAdminOverlay();
     alert("Admin mode enabled. Tap any highlighted text to edit.");
   } else {
     alert("Incorrect login.");
   }
+}
+
+function exitAdminMode() {
+  adminEnabled = false;
+  document.querySelectorAll(".editable").forEach(el => {
+    el.removeAttribute("contenteditable");
+  });
+  document.getElementById("adminBtn").textContent = "Admin";
+  alert("Admin mode disabled.");
 }
 
 /* -------------------- NAVIGATION -------------------- */
@@ -360,6 +495,11 @@ function showTab(id) {
   document.getElementById(id).classList.remove("hidden");
   const activeBtn = document.getElementById("tabBtn-" + id);
   if (activeBtn) activeBtn.classList.add("active");
+
+  if (id === "calendar") {
+    renderCalendar();
+    renderCalendarDetails();
+  }
 }
 
 /* -------------------- WORKOUT TEMPLATES -------------------- */
@@ -383,44 +523,87 @@ function loadTemplate() {
   const day = document.getElementById("daySelect").value;
   const list = document.getElementById("exerciseList");
   list.innerHTML = "";
-
   templates[day].forEach(name => addExercise(name));
 }
 
 function addExercise(name = "") {
-  const id = Date.now() + Math.random();
+  const id = "ex-" + (Date.now() + Math.random());
   const wrapper = document.createElement("div");
   wrapper.className = "log-item";
-  wrapper.id = "ex-" + id;
+  wrapper.id = id;
+
   wrapper.innerHTML = `
-    <input value="${name}" placeholder="Exercise name">
-    <input placeholder="Sets">
-    <input placeholder="Reps">
-    <input placeholder="Weight (kg)">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input class="exercise-name" value="${name}" placeholder="Exercise name" style="flex:1;">
+      <button type="button"
+              style="width:auto;background:#ef4444;padding:6px 10px;font-size:12px;"
+              onclick="deleteExercise('${id}')">Delete</button>
+    </div>
+    <div class="sets-container"></div>
+    <button type="button" style="width:auto;margin-top:8px;font-size:14px;"
+      onclick="addSetToExercise('${id}')">+ Add Set</button>
   `;
+
   document.getElementById("exerciseList").appendChild(wrapper);
+}
+
+function deleteExercise(exId) {
+  const exDiv = document.getElementById(exId);
+  if (exDiv) exDiv.remove();
+}
+
+function addSetToExercise(exId) {
+  const exDiv = document.getElementById(exId);
+  if (!exDiv) return;
+  const container = exDiv.querySelector(".sets-container");
+  const setCount = container.querySelectorAll(".set-row").length + 1;
+
+  const row = document.createElement("div");
+  row.className = "set-row";
+  row.innerHTML = `
+    <span>Set ${setCount}</span>
+    <input class="set-weight" placeholder="Weight (kg)">
+    <input class="set-reps" placeholder="Reps">
+    <input class="set-rest" placeholder="Rest (s)">
+    <input class="set-note" placeholder="Note (e.g. warm-up)">
+  `;
+
+  container.appendChild(row);
 }
 
 /* -------------------- SESSION SAVE & CALENDAR ASSIGN -------------------- */
 let pendingSession = null;
-let sessions = JSON.parse(localStorage.getItem("sessions_v2") || "[]");
+let sessions = JSON.parse(localStorage.getItem("sessions_v3") || "[]");
 
 function saveSession() {
   const exercises = [];
   document.querySelectorAll("#exerciseList .log-item").forEach(item => {
-    const inputs = item.querySelectorAll("input");
-    const exName = inputs[0].value.trim();
-    if (!exName) return; // skip empty exercise names
-    exercises.push({
-      name: exName,
-      sets: inputs[1].value,
-      reps: inputs[2].value,
-      weight: inputs[3].value
+    const nameInput = item.querySelector(".exercise-name");
+    const exName = (nameInput.value || "").trim();
+    if (!exName) return;
+
+    const sets = [];
+    item.querySelectorAll(".set-row").forEach((row, idx) => {
+      const w = row.querySelector(".set-weight").value;
+      const r = row.querySelector(".set-reps").value;
+      const rest = row.querySelector(".set-rest").value;
+      const note = row.querySelector(".set-note").value;
+      if (!(w || r || rest || note)) return;
+
+      sets.push({
+        setNumber: idx + 1,
+        weight: w,
+        reps: r,
+        rest: rest,
+        note: note
+      });
     });
+
+    exercises.push({ name: exName, sets });
   });
 
   if (exercises.length === 0) {
-    alert("Please add at least one exercise with a name before saving.");
+    alert("Please add at least one exercise (with a name) and optionally sets before saving.");
     return;
   }
 
@@ -430,22 +613,23 @@ function saveSession() {
     id: Date.now().toString(),
     template: templateKey,
     createdAt: new Date().toISOString(),
-    date: null, // to be chosen
+    date: null,
     exercises
   };
 
-  // Show overlay to choose a date
   openAssignOverlay();
 }
 
 /* ------------ Overlay calendar state ------------ */
-let assignYear, assignMonth;   // for overlay
-let calYear, calMonth;        // for main calendar
+let assignYear, assignMonth;   // overlay
+let calYear, calMonth;        // main calendar
+let selectedDate;             // currently selected date on calendar tab
 
 function initCalendarState() {
   const today = new Date();
   calYear = today.getFullYear();
   calMonth = today.getMonth();
+  selectedDate = todayISO();
   assignYear = calYear;
   assignMonth = calMonth;
 }
@@ -453,7 +637,6 @@ function initCalendarState() {
 function openAssignOverlay() {
   const overlay = document.getElementById("assignOverlay");
   overlay.style.display = "flex";
-  // Default to current month/year when opening
   const today = new Date();
   assignYear = today.getFullYear();
   assignMonth = today.getMonth();
@@ -495,8 +678,7 @@ function renderAssignCalendar() {
   const daysInMonth = new Date(assignYear, assignMonth + 1, 0).getDate();
 
   for (let i = 0; i < firstDay; i++) {
-    const emptyDiv = document.createElement("div");
-    grid.appendChild(emptyDiv);
+    grid.appendChild(document.createElement("div"));
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -522,21 +704,22 @@ function assignSessionToDay(year, month, day) {
 
   pendingSession.date = dateStr;
   sessions.push(pendingSession);
-  localStorage.setItem("sessions_v2", JSON.stringify(sessions));
+  localStorage.setItem("sessions_v3", JSON.stringify(sessions));
 
+  selectedDate = dateStr;
   pendingSession = null;
   document.getElementById("assignOverlay").style.display = "none";
 
-  // Refresh UI
   drawSessions();
   renderCalendar();
+  renderCalendarDetails();
 
   alert("Session saved for " + dateStr);
 }
 
-/* -------------------- DRAW SESSIONS -------------------- */
+/* -------------------- DRAW SESSIONS LIST -------------------- */
 function drawSessions() {
-  const log = [...sessions]; // copy
+  const log = [...sessions];
   const box = document.getElementById("sessionLog");
   box.innerHTML = "";
 
@@ -546,18 +729,24 @@ function drawSessions() {
   }
 
   log.sort((a,b) => (a.date || "").localeCompare(b.date || ""));
-
   log.reverse().forEach(s => {
     const dateLabel = s.date || "(no date)";
-    const exercisesHtml = s.exercises
-      .map(e => `${e.name}: ${e.sets}x${e.reps} @ ${e.weight}kg`)
-      .join("<br>");
+    const exHtml = s.exercises.map(ex => {
+      if (!ex.sets || ex.sets.length === 0) {
+        return `<div>${ex.name}</div>`;
+      }
+      const sets = ex.sets.map(set => {
+        const note = set.note ? ` – ${set.note}` : "";
+        return `Set ${set.setNumber}: ${set.weight}kg x ${set.reps} reps (${set.rest}s)${note}`;
+      }).join("<br>");
+      return `<details><summary>${ex.name}</summary><div style="margin-top:4px;">${sets}</div></details>`;
+    }).join("<br>");
 
     box.innerHTML += `
       <div class="log-item">
         <b>${dateLabel}</b><br>
         Template: ${s.template}<br><br>
-        ${exercisesHtml}
+        ${exHtml}
       </div>
     `;
   });
@@ -576,16 +765,12 @@ function renderCalendar() {
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
-  // Build a set of date strings that have sessions
   const gymDates = new Set(
-    sessions
-      .filter(s => s.date)
-      .map(s => s.date)
+    sessions.filter(s => s.date).map(s => s.date)
   );
 
   for (let i = 0; i < firstDay; i++) {
-    const emptyDiv = document.createElement("div");
-    grid.appendChild(emptyDiv);
+    grid.appendChild(document.createElement("div"));
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -602,6 +787,15 @@ function renderCalendar() {
     if (gymDates.has(dateStr)) {
       cell.classList.add("gym-day");
     }
+    if (selectedDate === dateStr) {
+      cell.classList.add("selected");
+    }
+
+    cell.onclick = () => {
+      selectedDate = dateStr;
+      renderCalendar();
+      renderCalendarDetails();
+    };
 
     grid.appendChild(cell);
   }
@@ -614,6 +808,7 @@ function nextMonth() {
     calYear++;
   }
   renderCalendar();
+  renderCalendarDetails();
 }
 
 function prevMonth() {
@@ -623,26 +818,87 @@ function prevMonth() {
     calYear--;
   }
   renderCalendar();
+  renderCalendarDetails();
+}
+
+/* -------------------- CALENDAR DETAILS (GYM + NUTRITION) -------------------- */
+function renderCalendarDetails() {
+  const box = document.getElementById("calendarDetails");
+  if (!box) return;
+  if (!selectedDate) selectedDate = todayISO();
+
+  const daySessions = sessions.filter(s => s.date === selectedDate);
+  const nutList = JSON.parse(localStorage.getItem("nutrition_v3") || "[]");
+  const nut = nutList.find(n => n.date === selectedDate);
+
+  let html = `<h3>Details for ${selectedDate}</h3>`;
+
+  if (daySessions.length === 0 && !nut) {
+    html += `<p>No sessions or nutrition logged for this day.</p>`;
+    box.innerHTML = html;
+    return;
+  }
+
+  if (daySessions.length > 0) {
+    html += `<p><b>Gym sessions:</b></p>`;
+    daySessions.forEach(s => {
+      html += `<div class="log-item" style="margin-bottom:8px;">`;
+      html += `<div class="small-label">Template: ${s.template}</div>`;
+      s.exercises.forEach(ex => {
+        if (!ex.sets || ex.sets.length === 0) {
+          html += `<div>${ex.name}</div>`;
+        } else {
+          const setsHtml = ex.sets.map(set => {
+            const note = set.note ? ` – ${set.note}` : "";
+            return `Set ${set.setNumber}: ${set.weight}kg x ${set.reps} reps (${set.rest}s)${note}`;
+          }).join("<br>");
+          html += `
+            <details>
+              <summary>${ex.name}</summary>
+              <div style="margin-top:4px;">${setsHtml}</div>
+            </details>
+          `;
+        }
+      });
+      html += `</div>`;
+    });
+  }
+
+  if (nut) {
+    html += `<p><b>Nutrition:</b></p>`;
+    html += `
+      <div class="log-item">
+        ${nut.cal} kcal — ${nut.pro}g P / ${nut.carb}g C / ${nut.fat}g F
+      </div>
+    `;
+  }
+
+  box.innerHTML = html;
 }
 
 /* -------------------- NUTRITION -------------------- */
 function saveNutrition() {
+  const dateVal = document.getElementById("nutDate").value || todayISO();
   const entry = {
-    date: new Date().toLocaleDateString(),
+    date: dateVal,
     cal: document.getElementById("cal").value,
     pro: document.getElementById("pro").value,
     carb: document.getElementById("carb").value,
     fat: document.getElementById("fat").value
   };
 
-  const list = JSON.parse(localStorage.getItem("nutrition_v2") || "[]");
+  const list = JSON.parse(localStorage.getItem("nutrition_v3") || "[]");
   list.push(entry);
-  localStorage.setItem("nutrition_v2", JSON.stringify(list));
+  localStorage.setItem("nutrition_v3", JSON.stringify(list));
   drawNutrition();
+
+  if (selectedDate === dateVal) {
+    renderCalendarDetails();
+  }
 }
 
 function drawNutrition() {
-  const list = JSON.parse(localStorage.getItem("nutrition_v2") || "[]");
+  const list = JSON.parse(localStorage.getItem("nutrition_v3") || "[]");
   const box = document.getElementById("nutritionLog");
 
   box.innerHTML = "";
@@ -671,15 +927,15 @@ function addCountdown() {
     return;
   }
 
-  const list = JSON.parse(localStorage.getItem("countdowns_v2") || "[]");
+  const list = JSON.parse(localStorage.getItem("countdowns_v3") || "[]");
   list.push({ name, date });
-  localStorage.setItem("countdowns_v2", JSON.stringify(list));
+  localStorage.setItem("countdowns_v3", JSON.stringify(list));
 
   drawCountdowns();
 }
 
 function drawCountdowns() {
-  const list = JSON.parse(localStorage.getItem("countdowns_v2") || "[]");
+  const list = JSON.parse(localStorage.getItem("countdowns_v3") || "[]");
   const box = document.getElementById("countList");
   box.innerHTML = "";
 
@@ -711,8 +967,14 @@ function init() {
   loadTemplate();
   drawSessions();
   renderCalendar();
+  renderCalendarDetails();
   drawNutrition();
   drawCountdowns();
+
+  const nutDateInput = document.getElementById("nutDate");
+  if (nutDateInput) {
+    nutDateInput.value = todayISO();
+  }
 }
 
 init();
