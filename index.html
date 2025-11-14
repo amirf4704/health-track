@@ -360,9 +360,9 @@ details summary {
   <div id="activitySettingsCard" class="card hidden">
     <h2>⚙️ Activity Settings (Admin)</h2>
     <p class="small-label">Choose which stats you want to see below.</p>
-    <label><input type="checkbox" id="prefGym"> Gym frequency & comparison</label>
-    <label><input type="checkbox" id="prefCalories"> Weekly calories vs maintenance</label>
-    <label><input type="checkbox" id="prefProtein"> Weekly protein intake</label>
+    <label><input type="checkbox" id="prefGym"> Gym frequency & comparison</label><br>
+    <label><input type="checkbox" id="prefCalories"> Weekly calories vs maintenance</label><br>
+    <label><input type="checkbox" id="prefProtein"> Weekly protein intake</label><br>
     <label><input type="checkbox" id="prefWeight"> Weight trend & projection</label>
     <button onclick="saveActivityPrefs()" style="width:auto;font-size:14px;margin-top:8px;">
       Save Activity Settings
@@ -370,6 +370,20 @@ details summary {
   </div>
 
   <div id="activityWidgets" class="widget-grid"></div>
+
+  <div class="card">
+    <h2 class="editable">Backup &amp; Restore</h2>
+    <p class="small-label">
+      Export all your data (workouts, nutrition, weight, settings) to a JSON file, or restore from a backup.
+    </p>
+    <button onclick="exportData()" style="width:auto;font-size:14px;margin-top:4px;">
+      Export Data (JSON)
+    </button>
+    <button onclick="importData()" style="width:auto;font-size:14px;margin-top:4px;">
+      Import Data
+    </button>
+    <input type="file" id="importInput" accept="application/json" class="hidden" onchange="handleImportFile(event)">
+  </div>
 </div>
 
 <!-- -------------------- NUTRITION TAB -------------------- -->
@@ -1481,8 +1495,11 @@ function buildGymWidget() {
   const thisMonthSessions = filterSessionsByMonth(activityYear, activityMonth);
   const lastMonthSessions = filterSessionsByPrevMonth(activityYear, activityMonth);
   const diff = thisMonthSessions.length - lastMonthSessions.length;
-  const direction = diff > 0 ? "up" : diff < 0 ? "down" : "the same as";
   const diffAbs = Math.abs(diff);
+  let direction;
+  if (diff > 0) direction = "up";
+  else if (diff < 0) direction = "down";
+  else direction = "the same as";
 
   card.innerHTML = `
     <h3>Gym Frequency</h3>
@@ -1505,10 +1522,13 @@ function buildCaloriesWidget() {
   if (goals.maintenance) {
     const maintenanceWeek = goals.maintenance * 7;
     const diff = totalCals - maintenanceWeek;
-    const status = diff > 0 ? "surplus" : diff < 0 ? "deficit" : "at maintenance";
+    let status;
+    if (diff > 0) status = "surplus";
+    else if (diff < 0) status = "deficit";
+    else status = "at maintenance";
     maintenanceInfo = `
       <p>Weekly target (maintenance × 7): <b>${maintenanceWeek.toLocaleString()}</b> kcal</p>
-      <p>You’re in a <b>${Math.abs(diff).toLocaleString()} kcal</b> ${status} this week.</p>
+      <p>You’re in a <b>${Math.abs(diff).toLocaleString()}</b> kcal ${status} this week.</p>
     `;
   }
 
@@ -1719,6 +1739,101 @@ function saveWorkoutTemplates() {
   loadTemplateFromCurrentDay();
   alert("Workout templates saved.");
   closeWorkoutTemplateEditor();
+}
+
+/* -------------------- EXPORT / IMPORT -------------------- */
+function exportData() {
+  const backup = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    sessions,
+    nutritionEntries,
+    countdowns,
+    weights,
+    goals,
+    workoutTemplates,
+    activityPrefs
+  };
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `health-track-backup-${todayISO()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData() {
+  const input = document.getElementById("importInput");
+  if (!input) return;
+  input.value = ""; // reset so same file can be chosen again
+  input.click();
+}
+
+function handleImportFile(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (!confirm("Importing will overwrite your current local data. Continue?")) {
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+
+      if (Array.isArray(data.sessions)) {
+        sessions = data.sessions;
+        localStorage.setItem("sessions_v3", JSON.stringify(sessions));
+      }
+      if (Array.isArray(data.nutritionEntries)) {
+        nutritionEntries = data.nutritionEntries;
+        localStorage.setItem("nutrition_v3", JSON.stringify(nutritionEntries));
+      }
+      if (Array.isArray(data.countdowns)) {
+        countdowns = data.countdowns;
+        localStorage.setItem("countdowns_v3", JSON.stringify(countdowns));
+      }
+      if (Array.isArray(data.weights)) {
+        weights = data.weights;
+        localStorage.setItem("weights_v1", JSON.stringify(weights));
+      }
+      if (data.goals && typeof data.goals === "object") {
+        goals = data.goals;
+        localStorage.setItem("goals_v1", JSON.stringify(goals));
+      }
+      if (Array.isArray(data.workoutTemplates)) {
+        workoutTemplates = data.workoutTemplates;
+        localStorage.setItem("workoutTemplates_v1", JSON.stringify(workoutTemplates));
+      }
+      if (data.activityPrefs && typeof data.activityPrefs === "object") {
+        activityPrefs = data.activityPrefs;
+        localStorage.setItem("activityPrefs_v1", JSON.stringify(activityPrefs));
+      }
+
+      // Refresh UI
+      populateWorkoutDaySelect();
+      loadTemplateFromCurrentDay();
+      populateGoalInputs();
+      drawSessions();
+      drawNutrition();
+      drawCountdowns();
+      drawWeights();
+      renderCalendar();
+      renderCalendarDetails();
+      renderActivity();
+
+      alert("Data imported successfully.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to import data. Make sure you selected a valid backup file.");
+    }
+  };
+  reader.readAsText(file);
 }
 
 /* -------------------- INIT -------------------- */
