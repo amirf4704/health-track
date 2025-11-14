@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doctor Lifting Log</title>
+
+<style>
+/* -------------------- GLOBAL THEME -------------------- */
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #020617; /* Deep navy */
+  color: #e2e8f0;      /* Soft grey */
+}
+
+h1, h2, h3 {
+  margin: 20px 0 10px;
+  padding-left: 15px;
+}
+
+button {
+  background: #22c55e; /* Neon green */
+  border: none;
+  padding: 12px 20px;
+  color: white;
+  border-radius: 10px;
+  font-size: 16px;
+  margin: 10px 0;
+  width: 90%;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  cursor: pointer;
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+.container {
+  padding: 15px;
+}
+
+/* Card styling */
+.card {
+  background: #0f172a;
+  padding: 15px;
+  margin: 15px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(34,197,94,0.1);
+}
+
+/* Editable text highlight */
+.editable:hover {
+  outline: 1px dashed #22c55e;
+}
+
+/* Tabs / Nav bar */
+.nav {
+  display: flex;
+  justify-content: space-around;
+  background: #0f172a;
+  padding: 10px 0;
+  position: sticky;
+  top: 0;
+  z-index: 999;
+}
+
+.nav button {
+  width: auto;
+  font-size: 14px;
+  padding: 8px 12px;
+  margin: 0;
+  background: #1e293b;
+  border-radius: 999px;
+}
+
+.nav button.active {
+  background: #22c55e;
+  color: black;
+}
+
+.hidden {
+  display: none;
+}
+
+/* Calendar (main + overlay) */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  padding: 10px;
+}
+
+.calendar-day {
+  padding: 10px;
+  background: #1e293b;
+  border-radius: 8px;
+  text-align: center;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-day-labels {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 10px;
+  font-size: 12px;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.gym-day {
+  background: #22c55e !important;
+  color: black !important;
+  font-weight: bold;
+}
+
+/* Session logs */
+.log-item {
+  background: #1e293b;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+/* Inputs */
+input, select {
+  width: 90%;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: #1e293b;
+  color: white;
+  margin: 5px auto;
+  display: block;
+}
+
+input::placeholder {
+  color: #6b7280;
+}
+
+/* Overlay for choosing date */
+#assignOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.9);
+  display: none; /* toggled to flex */
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.assign-card {
+  background: #020617;
+  border-radius: 16px;
+  padding: 15px;
+  width: 95%;
+  max-width: 400px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.8);
+}
+
+.assign-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.assign-header h3 {
+  margin: 0;
+}
+
+.assign-nav {
+  text-align: center;
+  margin-bottom: 5px;
+}
+
+.assign-nav button {
+  width: auto;
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.assign-help {
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 5px;
+  text-align: center;
+}
+
+.assign-footer {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.assign-footer button {
+  background: #ef4444;
+}
+
+/* Admin hint text */
+.admin-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  padding-left: 15px;
+  margin-top: -5px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- -------------------- NAVIGATION -------------------- -->
+<div class="nav">
+  <button id="tabBtn-workout" class="active" onclick="showTab('workout')">Workout</button>
+  <button id="tabBtn-calendar" onclick="showTab('calendar')">Calendar</button>
+  <button id="tabBtn-nutrition" onclick="showTab('nutrition')">Nutrition</button>
+  <button id="tabBtn-countdown" onclick="showTab('countdown')">Countdown</button>
+  <button onclick="adminLogin()">Admin</button>
+</div>
+
+<!-- -------------------- WORKOUT TAB -------------------- -->
+<div id="workout" class="container">
+  <h1 class="editable">Workout Tracker</h1>
+  <p class="admin-hint">After filling your session, hit “Save Session” and then pick the day in the calendar popup.</p>
+
+  <div class="card">
+    <h2 class="editable">Select Workout Day</h2>
+    <select id="daySelect" onchange="loadTemplate()">
+      <option value="arms">Day 1 — Arms & Delts</option>
+      <option value="upper">Day 2 — Mixed Upper</option>
+      <option value="priority">Priority Day — Arms & Abs</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <h2 class="editable">Exercises</h2>
+    <div id="exerciseList"></div>
+    <button onclick="addExercise()">Add Exercise</button>
+  </div>
+
+  <button onclick="saveSession()">Save Session</button>
+
+  <div class="card">
+    <h2 class="editable">Past Sessions</h2>
+    <div id="sessionLog"></div>
+  </div>
+</div>
+
+<!-- -------------------- CALENDAR TAB -------------------- -->
+<div id="calendar" class="container hidden">
+  <h1 class="editable">Gym Calendar</h1>
+
+  <div style="text-align:center;">
+    <button onclick="prevMonth()">◀</button>
+    <span id="monthLabel"></span>
+    <button onclick="nextMonth()">▶</button>
+  </div>
+
+  <div class="calendar-day-labels">
+    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+  </div>
+
+  <div class="calendar-grid" id="calendarGrid"></div>
+</div>
+
+<!-- -------------------- NUTRITION TAB -------------------- -->
+<div id="nutrition" class="container hidden">
+  <h1 class="editable">Nutrition Tracker</h1>
+
+  <div class="card">
+    <h2 class="editable">Daily Intake</h2>
+    <input id="cal" type="number" placeholder="Calories">
+    <input id="pro" type="number" placeholder="Protein (g)">
+    <input id="carb" type="number" placeholder="Carbs (g)">
+    <input id="fat" type="number" placeholder="Fat (g)">
+    <button onclick="saveNutrition()">Save</button>
+  </div>
+
+  <div class="card">
+    <h2 class="editable">History</h2>
+    <div id="nutritionLog"></div>
+  </div>
+</div>
+
+<!-- -------------------- COUNTDOWN TAB -------------------- -->
+<div id="countdown" class="container hidden">
+  <h1 class="editable">Countdowns</h1>
+
+  <div class="card">
+    <h2 class="editable">Add Countdown</h2>
+    <input type="text" id="countName" placeholder="Event (e.g., Stag Do)">
+    <input type="date" id="countDate">
+    <button onclick="addCountdown()">Add</button>
+  </div>
+
+  <div class="card">
+    <h2 class="editable">Your Events</h2>
+    <div id="countList"></div>
+  </div>
+</div>
+
+<!-- -------------------- ASSIGN DATE OVERLAY -------------------- -->
+<div id="assignOverlay">
+  <div class="assign-card">
+    <div class="assign-header">
+      <h3>Assign Session to a Day</h3>
+      <button style="width:auto;background:#1f2937;padding:6px 10px;font-size:13px;"
+              onclick="cancelAssign()">X</button>
+    </div>
+    <p class="assign-help">Use the arrows to change month, then tap a day to save the session to that date.</p>
+    <div class="assign-nav">
+      <button onclick="assignPrevMonth()">◀</button>
+      <span id="assignMonthLabel" style="margin:0 10px;"></span>
+      <button onclick="assignNextMonth()">▶</button>
+    </div>
+    <div class="calendar-day-labels">
+      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
+    <div class="calendar-grid" id="assignCalendarGrid"></div>
+    <div class="assign-footer">
+      <button onclick="cancelAssign()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- -------------------- SCRIPT -------------------- -->
+<script>
+/* -------------------- ADMIN MODE -------------------- */
+let adminEnabled = false;
+
+function adminLogin() {
+  const u = prompt("Username:");
+  const p = prompt("Password:");
+  if (u === "amirf4704" && p === "Gymbro4704") {
+    adminEnabled = true;
+    document.querySelectorAll(".editable").forEach(el => {
+      el.setAttribute("contenteditable", "true");
+    });
+    alert("Admin mode enabled. Tap any highlighted text to edit.");
+  } else {
+    alert("Incorrect login.");
+  }
+}
+
+/* -------------------- NAVIGATION -------------------- */
+function showTab(id) {
+  const tabs = ["workout", "calendar", "nutrition", "countdown"];
+  tabs.forEach(tab => {
+    document.getElementById(tab).classList.add("hidden");
+    const btn = document.getElementById("tabBtn-" + tab);
+    if (btn) btn.classList.remove("active");
+  });
+  document.getElementById(id).classList.remove("hidden");
+  const activeBtn = document.getElementById("tabBtn-" + id);
+  if (activeBtn) activeBtn.classList.add("active");
+}
+
+/* -------------------- WORKOUT TEMPLATES -------------------- */
+const templates = {
+  arms: [
+    "Barbell Curls", "Hammer Curls", "Tricep Pushdowns",
+    "Skullcrushers", "Lateral Raises", "Rear Delt Fly",
+    "Shrugs", "Cable Crunch", "Hanging Leg Raise"
+  ],
+  upper: [
+    "Bench Press", "Incline Dumbbell Press", "Lat Pulldown",
+    "Seated Row", "Face Pulls", "Biceps Finisher", "Ab Wheel"
+  ],
+  priority: [
+    "Biceps Curls", "Triceps Rope", "Overhead Extensions",
+    "Hanging Leg Raise", "Cable Crunch"
+  ]
+};
+
+function loadTemplate() {
+  const day = document.getElementById("daySelect").value;
+  const list = document.getElementById("exerciseList");
+  list.innerHTML = "";
+
+  templates[day].forEach(name => addExercise(name));
+}
+
+function addExercise(name = "") {
+  const id = Date.now() + Math.random();
+  const wrapper = document.createElement("div");
+  wrapper.className = "log-item";
+  wrapper.id = "ex-" + id;
+  wrapper.innerHTML = `
+    <input value="${name}" placeholder="Exercise name">
+    <input placeholder="Sets">
+    <input placeholder="Reps">
+    <input placeholder="Weight (kg)">
+  `;
+  document.getElementById("exerciseList").appendChild(wrapper);
+}
+
+/* -------------------- SESSION SAVE & CALENDAR ASSIGN -------------------- */
+let pendingSession = null;
+let sessions = JSON.parse(localStorage.getItem("sessions_v2") || "[]");
+
+function saveSession() {
+  const exercises = [];
+  document.querySelectorAll("#exerciseList .log-item").forEach(item => {
+    const inputs = item.querySelectorAll("input");
+    const exName = inputs[0].value.trim();
+    if (!exName) return; // skip empty exercise names
+    exercises.push({
+      name: exName,
+      sets: inputs[1].value,
+      reps: inputs[2].value,
+      weight: inputs[3].value
+    });
+  });
+
+  if (exercises.length === 0) {
+    alert("Please add at least one exercise with a name before saving.");
+    return;
+  }
+
+  const templateKey = document.getElementById("daySelect").value;
+
+  pendingSession = {
+    id: Date.now().toString(),
+    template: templateKey,
+    createdAt: new Date().toISOString(),
+    date: null, // to be chosen
+    exercises
+  };
+
+  // Show overlay to choose a date
+  openAssignOverlay();
+}
+
+/* ------------ Overlay calendar state ------------ */
+let assignYear, assignMonth;   // for overlay
+let calYear, calMonth;        // for main calendar
+
+function initCalendarState() {
+  const today = new Date();
+  calYear = today.getFullYear();
+  calMonth = today.getMonth();
+  assignYear = calYear;
+  assignMonth = calMonth;
+}
+
+function openAssignOverlay() {
+  const overlay = document.getElementById("assignOverlay");
+  overlay.style.display = "flex";
+  // Default to current month/year when opening
+  const today = new Date();
+  assignYear = today.getFullYear();
+  assignMonth = today.getMonth();
+  renderAssignCalendar();
+}
+
+function cancelAssign() {
+  pendingSession = null;
+  document.getElementById("assignOverlay").style.display = "none";
+}
+
+function assignPrevMonth() {
+  assignMonth--;
+  if (assignMonth < 0) {
+    assignMonth = 11;
+    assignYear--;
+  }
+  renderAssignCalendar();
+}
+
+function assignNextMonth() {
+  assignMonth++;
+  if (assignMonth > 11) {
+    assignMonth = 0;
+    assignYear++;
+  }
+  renderAssignCalendar();
+}
+
+function renderAssignCalendar() {
+  const grid = document.getElementById("assignCalendarGrid");
+  grid.innerHTML = "";
+
+  const monthName = new Date(assignYear, assignMonth, 1)
+    .toLocaleString("default", { month: "long" });
+  document.getElementById("assignMonthLabel").innerText = `${monthName} ${assignYear}`;
+
+  const firstDay = new Date(assignYear, assignMonth, 1).getDay();
+  const daysInMonth = new Date(assignYear, assignMonth + 1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    const emptyDiv = document.createElement("div");
+    grid.appendChild(emptyDiv);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement("div");
+    cell.className = "calendar-day";
+    cell.textContent = d;
+    cell.onclick = () => assignSessionToDay(assignYear, assignMonth, d);
+    grid.appendChild(cell);
+  }
+}
+
+function assignSessionToDay(year, month, day) {
+  if (!pendingSession) {
+    alert("No pending session to assign.");
+    return;
+  }
+
+  const dateStr = [
+    year,
+    String(month + 1).padStart(2, "0"),
+    String(day).padStart(2, "0")
+  ].join("-");
+
+  pendingSession.date = dateStr;
+  sessions.push(pendingSession);
+  localStorage.setItem("sessions_v2", JSON.stringify(sessions));
+
+  pendingSession = null;
+  document.getElementById("assignOverlay").style.display = "none";
+
+  // Refresh UI
+  drawSessions();
+  renderCalendar();
+
+  alert("Session saved for " + dateStr);
+}
+
+/* -------------------- DRAW SESSIONS -------------------- */
+function drawSessions() {
+  const log = [...sessions]; // copy
+  const box = document.getElementById("sessionLog");
+  box.innerHTML = "";
+
+  if (log.length === 0) {
+    box.innerHTML = "<p>No sessions logged yet.</p>";
+    return;
+  }
+
+  log.sort((a,b) => (a.date || "").localeCompare(b.date || ""));
+
+  log.reverse().forEach(s => {
+    const dateLabel = s.date || "(no date)";
+    const exercisesHtml = s.exercises
+      .map(e => `${e.name}: ${e.sets}x${e.reps} @ ${e.weight}kg`)
+      .join("<br>");
+
+    box.innerHTML += `
+      <div class="log-item">
+        <b>${dateLabel}</b><br>
+        Template: ${s.template}<br><br>
+        ${exercisesHtml}
+      </div>
+    `;
+  });
+}
+
+/* -------------------- MAIN CALENDAR (TAB) -------------------- */
+
+function renderCalendar() {
+  const grid = document.getElementById("calendarGrid");
+  grid.innerHTML = "";
+
+  const monthName = new Date(calYear, calMonth, 1)
+    .toLocaleString("default", { month: "long" });
+  document.getElementById("monthLabel").innerText = `${monthName} ${calYear}`;
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  // Build a set of date strings that have sessions
+  const gymDates = new Set(
+    sessions
+      .filter(s => s.date)
+      .map(s => s.date)
+  );
+
+  for (let i = 0; i < firstDay; i++) {
+    const emptyDiv = document.createElement("div");
+    grid.appendChild(emptyDiv);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement("div");
+    cell.className = "calendar-day";
+    cell.textContent = d;
+
+    const dateStr = [
+      calYear,
+      String(calMonth + 1).padStart(2, "0"),
+      String(d).padStart(2, "0")
+    ].join("-");
+
+    if (gymDates.has(dateStr)) {
+      cell.classList.add("gym-day");
+    }
+
+    grid.appendChild(cell);
+  }
+}
+
+function nextMonth() {
+  calMonth++;
+  if (calMonth > 11) {
+    calMonth = 0;
+    calYear++;
+  }
+  renderCalendar();
+}
+
+function prevMonth() {
+  calMonth--;
+  if (calMonth < 0) {
+    calMonth = 11;
+    calYear--;
+  }
+  renderCalendar();
+}
+
+/* -------------------- NUTRITION -------------------- */
+function saveNutrition() {
+  const entry = {
+    date: new Date().toLocaleDateString(),
+    cal: document.getElementById("cal").value,
+    pro: document.getElementById("pro").value,
+    carb: document.getElementById("carb").value,
+    fat: document.getElementById("fat").value
+  };
+
+  const list = JSON.parse(localStorage.getItem("nutrition_v2") || "[]");
+  list.push(entry);
+  localStorage.setItem("nutrition_v2", JSON.stringify(list));
+  drawNutrition();
+}
+
+function drawNutrition() {
+  const list = JSON.parse(localStorage.getItem("nutrition_v2") || "[]");
+  const box = document.getElementById("nutritionLog");
+
+  box.innerHTML = "";
+  if (list.length === 0) {
+    box.innerHTML = "<p>No nutrition entries yet.</p>";
+    return;
+  }
+
+  list.slice().reverse().forEach(e => {
+    box.innerHTML += `
+      <div class="log-item">
+        <b>${e.date}</b><br>
+        ${e.cal} kcal — ${e.pro}g P / ${e.carb}g C / ${e.fat}g F
+      </div>
+    `;
+  });
+}
+
+/* -------------------- COUNTDOWNS -------------------- */
+function addCountdown() {
+  const name = document.getElementById("countName").value.trim();
+  const date = document.getElementById("countDate").value;
+
+  if (!name || !date) {
+    alert("Please enter both event name and date.");
+    return;
+  }
+
+  const list = JSON.parse(localStorage.getItem("countdowns_v2") || "[]");
+  list.push({ name, date });
+  localStorage.setItem("countdowns_v2", JSON.stringify(list));
+
+  drawCountdowns();
+}
+
+function drawCountdowns() {
+  const list = JSON.parse(localStorage.getItem("countdowns_v2") || "[]");
+  const box = document.getElementById("countList");
+  box.innerHTML = "";
+
+  if (list.length === 0) {
+    box.innerHTML = "<p>No countdowns yet.</p>";
+    return;
+  }
+
+  const today = new Date();
+
+  list.forEach(c => {
+    const diff = Math.floor(
+      (new Date(c.date) - today) / (1000 * 60 * 60 * 24)
+    );
+
+    box.innerHTML += `
+      <div class="log-item">
+        <b>${c.name}</b><br>
+        ${c.date}<br>
+        ${diff} day${Math.abs(diff) === 1 ? "" : "s"} remaining
+      </div>
+    `;
+  });
+}
+
+/* -------------------- INIT -------------------- */
+function init() {
+  initCalendarState();
+  loadTemplate();
+  drawSessions();
+  renderCalendar();
+  drawNutrition();
+  drawCountdowns();
+}
+
+init();
+</script>
+
+</body>
+</html>
