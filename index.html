@@ -40,6 +40,11 @@ button:active {
   transform: translateY(1px);
 }
 
+button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .container {
   padding: 15px;
 }
@@ -71,8 +76,8 @@ button:active {
 
 .nav button {
   width: auto;
-  font-size: 14px;
-  padding: 8px 12px;
+  font-size: 13px;
+  padding: 8px 10px;
   margin: 0;
   background: #1e293b;
   border-radius: 999px;
@@ -164,7 +169,7 @@ input::placeholder {
   color: #9ca3af;
 }
 
-/* Overlay base style (used for assign + admin) */
+/* Overlay base style (used for assign + login) */
 .overlay {
   position: fixed;
   inset: 0;
@@ -175,7 +180,7 @@ input::placeholder {
   z-index: 2000;
 }
 
-.assign-card {
+.overlay-card {
   background: #020617;
   border-radius: 16px;
   padding: 15px;
@@ -184,43 +189,22 @@ input::placeholder {
   box-shadow: 0 0 25px rgba(0,0,0,0.8);
 }
 
-.assign-header {
+.overlay-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
 }
 
-.assign-header h3 {
+.overlay-header h3 {
   margin: 0;
 }
 
-.assign-nav {
-  text-align: center;
-  margin-bottom: 5px;
-}
-
-.assign-nav button {
-  width: auto;
-  display: inline-block;
-  padding: 4px 10px;
-  font-size: 13px;
-}
-
-.assign-help {
+.overlay-help {
   font-size: 13px;
   color: #9ca3af;
   margin-bottom: 5px;
   text-align: center;
-}
-
-.assign-footer {
-  margin-top: 8px;
-  text-align: center;
-}
-
-.assign-footer button {
-  background: #ef4444;
 }
 
 /* Admin hint text */
@@ -270,13 +254,14 @@ details summary {
   <button id="tabBtn-calendar" onclick="showTab('calendar')">Calendar</button>
   <button id="tabBtn-nutrition" onclick="showTab('nutrition')">Nutrition</button>
   <button id="tabBtn-countdown" onclick="showTab('countdown')">Countdown</button>
-  <button id="adminBtn" onclick="adminButtonClick()">Admin</button>
+  <button id="loginBtn" onclick="loginButtonClick()">Log in</button>
+  <button id="adminBtn" onclick="adminButtonClick()" disabled>Admin</button>
 </div>
 
 <!-- -------------------- WORKOUT TAB -------------------- -->
 <div id="workout" class="container">
   <h1 class="editable">Workout Tracker</h1>
-  <p class="admin-hint">Fill sets for each exercise. When you hit “Save Session”, you’ll choose the day on a calendar.</p>
+  <p class="admin-hint">Read-only until you log in. After login you can add sets, save sessions, etc. Admin mode only changes labels/text.</p>
 
   <div class="card">
     <h2 class="editable">Select Workout Day</h2>
@@ -290,10 +275,10 @@ details summary {
   <div class="card">
     <h2 class="editable">Exercises</h2>
     <div id="exerciseList"></div>
-    <button onclick="addExercise()">Add Exercise</button>
+    <button onclick="guardedAddExercise()">Add Exercise</button>
   </div>
 
-  <button onclick="saveSession()">Save Session</button>
+  <button onclick="guardedSaveSession()">Save Session</button>
 
   <div class="card">
     <h2 class="editable">Past Sessions</h2>
@@ -336,7 +321,7 @@ details summary {
     <input id="pro" type="number" placeholder="Protein (g)">
     <input id="carb" type="number" placeholder="Carbs (g)">
     <input id="fat" type="number" placeholder="Fat (g)">
-    <button onclick="saveNutrition()">Save</button>
+    <button onclick="guardedSaveNutrition()">Save</button>
   </div>
 
   <div class="card">
@@ -353,7 +338,7 @@ details summary {
     <h2 class="editable">Add Countdown</h2>
     <input type="text" id="countName" placeholder="Event (e.g., Stag Do)">
     <input type="date" id="countDate">
-    <button onclick="addCountdown()">Add</button>
+    <button onclick="guardedAddCountdown()">Add</button>
   </div>
 
   <div class="card">
@@ -364,48 +349,48 @@ details summary {
 
 <!-- -------------------- ASSIGN DATE OVERLAY -------------------- -->
 <div id="assignOverlay" class="overlay">
-  <div class="assign-card">
-    <div class="assign-header">
+  <div class="overlay-card">
+    <div class="overlay-header">
       <h3>Assign Session to a Day</h3>
       <button style="width:auto;background:#1f2937;padding:6px 10px;font-size:13px;"
               onclick="cancelAssign()">X</button>
     </div>
-    <p class="assign-help">Use the arrows to change month, then tap a day to save the session to that date.</p>
-    <div class="assign-nav">
-      <button onclick="assignPrevMonth()">◀</button>
+    <p class="overlay-help">Use the arrows to change month, then tap a day to save the session to that date.</p>
+    <div style="text-align:center;margin-bottom:5px;">
+      <button onclick="assignPrevMonth()" style="width:auto;padding:4px 10px;font-size:13px;">◀</button>
       <span id="assignMonthLabel" style="margin:0 10px;"></span>
-      <button onclick="assignNextMonth()">▶</button>
+      <button onclick="assignNextMonth()" style="width:auto;padding:4px 10px;font-size:13px;">▶</button>
     </div>
     <div class="calendar-day-labels">
       <div>Sun</div><div>Mon</div><div>Tue</div>
       <div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
     </div>
     <div class="calendar-grid" id="assignCalendarGrid"></div>
-    <div class="assign-footer">
-      <button onclick="cancelAssign()">Cancel</button>
+    <div style="margin-top:8px;text-align:center;">
+      <button onclick="cancelAssign()" style="background:#ef4444;">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- -------------------- ADMIN LOGIN OVERLAY -------------------- -->
-<div id="adminOverlay" class="overlay">
-  <div class="assign-card">
-    <div class="assign-header">
-      <h3>Admin Login</h3>
+<!-- -------------------- LOGIN OVERLAY -------------------- -->
+<div id="loginOverlay" class="overlay">
+  <div class="overlay-card">
+    <div class="overlay-header">
+      <h3>Log in</h3>
       <button style="width:auto;background:#1f2937;padding:6px 10px;font-size:13px;"
-              onclick="closeAdminOverlay()">X</button>
+              onclick="closeLoginOverlay()">X</button>
     </div>
-    <p class="assign-help">Enter your username and password. Username is not case-sensitive.</p>
-    <input id="adminUsername" type="text" placeholder="Username">
+    <p class="overlay-help">Enter your username and password. Username is not case-sensitive.</p>
+    <input id="loginUsername" type="text" placeholder="Username">
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-      <input id="adminPassword" type="password" placeholder="Password" style="flex:1;">
-      <button type="button" id="adminPwToggle"
+      <input id="loginPassword" type="password" placeholder="Password" style="flex:1;">
+      <button type="button" id="loginPwToggle"
               style="width:auto;padding:6px 10px;font-size:12px;background:#1f2937;"
-              onclick="toggleAdminPasswordVisibility()">Show</button>
+              onclick="toggleLoginPasswordVisibility()">Show</button>
     </div>
-    <div class="assign-footer" style="margin-top:12px;">
-      <button onclick="submitAdminLogin()" style="background:#22c55e;">Login</button>
-      <button onclick="closeAdminOverlay()">Cancel</button>
+    <div style="margin-top:12px;text-align:center;">
+      <button onclick="submitLogin()" style="background:#22c55e;">Log in</button>
+      <button onclick="closeLoginOverlay()">Cancel</button>
     </div>
   </div>
 </div>
@@ -421,34 +406,40 @@ function todayISO() {
   return `${y}-${m}-${day}`;
 }
 
-/* -------------------- ADMIN MODE -------------------- */
+/* -------------------- LOGIN & ADMIN STATE -------------------- */
+let loggedIn = false;
 let adminEnabled = false;
 
-function adminButtonClick() {
-  if (adminEnabled) {
-    exitAdminMode();
+function loginButtonClick() {
+  if (loggedIn) {
+    // Logout flow
+    loggedIn = false;
+    exitAdminMode(true);
+    document.getElementById("loginBtn").textContent = "Log in";
+    document.getElementById("adminBtn").disabled = true;
+    alert("Logged out. App is now read-only.");
   } else {
-    openAdminOverlay();
+    openLoginOverlay();
   }
 }
 
-function openAdminOverlay() {
-  document.getElementById("adminUsername").value = "";
-  document.getElementById("adminPassword").value = "";
-  const pwInput = document.getElementById("adminPassword");
+function openLoginOverlay() {
+  document.getElementById("loginUsername").value = "";
+  document.getElementById("loginPassword").value = "";
+  const pwInput = document.getElementById("loginPassword");
   pwInput.type = "password";
-  const toggle = document.getElementById("adminPwToggle");
+  const toggle = document.getElementById("loginPwToggle");
   toggle.textContent = "Show";
-  document.getElementById("adminOverlay").style.display = "flex";
+  document.getElementById("loginOverlay").style.display = "flex";
 }
 
-function closeAdminOverlay() {
-  document.getElementById("adminOverlay").style.display = "none";
+function closeLoginOverlay() {
+  document.getElementById("loginOverlay").style.display = "none";
 }
 
-function toggleAdminPasswordVisibility() {
-  const input = document.getElementById("adminPassword");
-  const toggle = document.getElementById("adminPwToggle");
+function toggleLoginPasswordVisibility() {
+  const input = document.getElementById("loginPassword");
+  const toggle = document.getElementById("loginPwToggle");
   if (input.type === "password") {
     input.type = "text";
     toggle.textContent = "Hide";
@@ -458,30 +449,60 @@ function toggleAdminPasswordVisibility() {
   }
 }
 
-function submitAdminLogin() {
-  const u = (document.getElementById("adminUsername").value || "").trim().toLowerCase();
-  const p = (document.getElementById("adminPassword").value || "").trim();
+function submitLogin() {
+  const u = (document.getElementById("loginUsername").value || "").trim().toLowerCase();
+  const p = (document.getElementById("loginPassword").value || "").trim();
 
   if (u === "amirf4704" && p === "Gymbro4704") {
-    adminEnabled = true;
-    document.querySelectorAll(".editable").forEach(el => {
-      el.setAttribute("contenteditable", "true");
-    });
-    document.getElementById("adminBtn").textContent = "Exit Admin";
-    closeAdminOverlay();
-    alert("Admin mode enabled. Tap any highlighted text to edit.");
+    loggedIn = true;
+    document.getElementById("loginBtn").textContent = "Log out";
+    document.getElementById("adminBtn").disabled = false;
+    closeLoginOverlay();
+    alert("Logged in. You can now add/edit workouts, nutrition and countdowns. Use Admin for label editing.");
   } else {
     alert("Incorrect login.");
   }
 }
 
-function exitAdminMode() {
+function adminButtonClick() {
+  if (!loggedIn) {
+    alert("Log in first to use admin mode.");
+    return;
+  }
+  if (adminEnabled) {
+    exitAdminMode();
+  } else {
+    enterAdminMode();
+  }
+}
+
+function enterAdminMode() {
+  adminEnabled = true;
+  document.querySelectorAll(".editable").forEach(el => {
+    el.setAttribute("contenteditable", "true");
+  });
+  document.getElementById("adminBtn").textContent = "Exit Admin";
+  alert("Admin mode enabled. Tap any highlighted text to edit.");
+}
+
+function exitAdminMode(silent = false) {
   adminEnabled = false;
   document.querySelectorAll(".editable").forEach(el => {
     el.removeAttribute("contenteditable");
   });
   document.getElementById("adminBtn").textContent = "Admin";
-  alert("Admin mode disabled.");
+  if (!silent) {
+    alert("Admin mode disabled.");
+  }
+}
+
+/* Guard helpers: block changes when not logged in */
+function ensureLoggedIn() {
+  if (!loggedIn) {
+    alert("Log in to edit or add data.");
+    return false;
+  }
+  return true;
 }
 
 /* -------------------- NAVIGATION -------------------- */
@@ -523,10 +544,11 @@ function loadTemplate() {
   const day = document.getElementById("daySelect").value;
   const list = document.getElementById("exerciseList");
   list.innerHTML = "";
-  templates[day].forEach(name => addExercise(name));
+  templates[day].forEach(name => addExerciseRaw(name));
 }
 
-function addExercise(name = "") {
+/* raw addExercise with no login guard, used by template loader */
+function addExerciseRaw(name = "") {
   const id = "ex-" + (Date.now() + Math.random());
   const wrapper = document.createElement("div");
   wrapper.className = "log-item";
@@ -537,19 +559,31 @@ function addExercise(name = "") {
       <input class="exercise-name" value="${name}" placeholder="Exercise name" style="flex:1;">
       <button type="button"
               style="width:auto;background:#ef4444;padding:6px 10px;font-size:12px;"
-              onclick="deleteExercise('${id}')">Delete</button>
+              onclick="guardedDeleteExercise('${id}')">Delete</button>
     </div>
     <div class="sets-container"></div>
     <button type="button" style="width:auto;margin-top:8px;font-size:14px;"
-      onclick="addSetToExercise('${id}')">+ Add Set</button>
+      onclick="guardedAddSetToExercise('${id}')">+ Add Set</button>
   `;
 
   document.getElementById("exerciseList").appendChild(wrapper);
 }
 
-function deleteExercise(exId) {
+/* guarded addExercise: only via button */
+function guardedAddExercise() {
+  if (!ensureLoggedIn()) return;
+  addExerciseRaw("");
+}
+
+function guardedDeleteExercise(exId) {
+  if (!ensureLoggedIn()) return;
   const exDiv = document.getElementById(exId);
   if (exDiv) exDiv.remove();
+}
+
+function guardedAddSetToExercise(exId) {
+  if (!ensureLoggedIn()) return;
+  addSetToExercise(exId);
 }
 
 function addSetToExercise(exId) {
@@ -574,6 +608,11 @@ function addSetToExercise(exId) {
 /* -------------------- SESSION SAVE & CALENDAR ASSIGN -------------------- */
 let pendingSession = null;
 let sessions = JSON.parse(localStorage.getItem("sessions_v3") || "[]");
+
+function guardedSaveSession() {
+  if (!ensureLoggedIn()) return;
+  saveSession();
+}
 
 function saveSession() {
   const exercises = [];
@@ -877,6 +916,11 @@ function renderCalendarDetails() {
 }
 
 /* -------------------- NUTRITION -------------------- */
+function guardedSaveNutrition() {
+  if (!ensureLoggedIn()) return;
+  saveNutrition();
+}
+
 function saveNutrition() {
   const dateVal = document.getElementById("nutDate").value || todayISO();
   const entry = {
@@ -918,6 +962,11 @@ function drawNutrition() {
 }
 
 /* -------------------- COUNTDOWNS -------------------- */
+function guardedAddCountdown() {
+  if (!ensureLoggedIn()) return;
+  addCountdown();
+}
+
 function addCountdown() {
   const name = document.getElementById("countName").value.trim();
   const date = document.getElementById("countDate").value;
@@ -964,7 +1013,7 @@ function drawCountdowns() {
 /* -------------------- INIT -------------------- */
 function init() {
   initCalendarState();
-  loadTemplate();
+  loadTemplate();          // pre-fill exercises
   drawSessions();
   renderCalendar();
   renderCalendarDetails();
@@ -975,6 +1024,10 @@ function init() {
   if (nutDateInput) {
     nutDateInput.value = todayISO();
   }
+
+  // Start in read-only mode: admin disabled, login required for edits
+  document.getElementById("adminBtn").disabled = true;
+  document.getElementById("loginBtn").textContent = "Log in";
 }
 
 init();
