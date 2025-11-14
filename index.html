@@ -76,8 +76,8 @@ button[disabled] {
 
 .nav button {
   width: auto;
-  font-size: 13px;
-  padding: 8px 10px;
+  font-size: 12px;
+  padding: 6px 8px;
   margin: 0;
   background: #1e293b;
   border-radius: 999px;
@@ -92,7 +92,7 @@ button[disabled] {
   display: none;
 }
 
-/* Calendar (main + overlay) */
+/* Calendar grids */
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -101,11 +101,11 @@ button[disabled] {
 }
 
 .calendar-day {
-  padding: 10px;
+  padding: 8px;
   background: #1e293b;
   border-radius: 8px;
   text-align: center;
-  min-height: 40px;
+  min-height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -116,7 +116,7 @@ button[disabled] {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   padding: 0 10px;
-  font-size: 12px;
+  font-size: 11px;
   text-align: center;
   color: #9ca3af;
 }
@@ -125,6 +125,10 @@ button[disabled] {
   background: #22c55e !important;
   color: black !important;
   font-weight: bold;
+}
+
+.activity-day-highlight {
+  box-shadow: 0 0 0 2px #22c55e;
 }
 
 .calendar-day.selected {
@@ -169,7 +173,7 @@ input::placeholder {
   color: #9ca3af;
 }
 
-/* Overlay base style (used for assign + login) */
+/* Overlay base style (used for assign, login, workout edit) */
 .overlay {
   position: fixed;
   inset: 0;
@@ -185,7 +189,7 @@ input::placeholder {
   border-radius: 16px;
   padding: 15px;
   width: 95%;
-  max-width: 400px;
+  max-width: 420px;
   box-shadow: 0 0 25px rgba(0,0,0,0.8);
 }
 
@@ -216,7 +220,8 @@ input::placeholder {
 }
 
 /* Details card */
-#calendarDetails h3 {
+#calendarDetails h3,
+#activityDetails h3 {
   padding-left: 0;
   margin-top: 0;
 }
@@ -243,6 +248,28 @@ details summary {
   font-size: 13px;
   color: #9ca3af;
 }
+
+/* Activity widgets */
+.widget-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 5px;
+}
+
+@media (min-width: 600px) {
+  .widget-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Weight chart */
+#weightChart {
+  width: 100%;
+  height: 200px;
+  background: #020617;
+  border-radius: 8px;
+}
 </style>
 </head>
 
@@ -250,30 +277,33 @@ details summary {
 
 <!-- -------------------- NAVIGATION -------------------- -->
 <div class="nav">
-  <button id="tabBtn-workout" class="active" onclick="showTab('workout')">Workout</button>
-  <button id="tabBtn-calendar" onclick="showTab('calendar')">Calendar</button>
-  <button id="tabBtn-nutrition" onclick="showTab('nutrition')">Nutrition</button>
-  <button id="tabBtn-countdown" onclick="showTab('countdown')">Countdown</button>
+  <button id="tabBtn-workout" class="active" onclick="showTab('workout')">💪 Workout</button>
+  <button id="tabBtn-calendar" onclick="showTab('calendar')">📅 Calendar</button>
+  <button id="tabBtn-activity" onclick="showTab('activity')">📈 Activity</button>
+  <button id="tabBtn-nutrition" onclick="showTab('nutrition')">🍽️ Nutrition</button>
+  <button id="tabBtn-weight" onclick="showTab('weight')">⚖️ Weight</button>
+  <button id="tabBtn-countdown" onclick="showTab('countdown')">🗓️ Countdown</button>
   <button id="loginBtn" onclick="loginButtonClick()">Log in</button>
   <button id="adminBtn" onclick="adminButtonClick()" disabled>Admin</button>
 </div>
 
 <!-- -------------------- WORKOUT TAB -------------------- -->
 <div id="workout" class="container">
-  <h1 class="editable">Workout Tracker</h1>
-  <p class="admin-hint">Read-only until you log in. After login you can add sets, save sessions, etc. Admin mode only changes labels/text.</p>
+  <h1 class="editable">💪 Workout Tracker</h1>
+  <p class="admin-hint">
+    Read-only until you log in. After login you can log sets. Admin mode lets you edit labels and workout day templates.
+  </p>
 
   <div class="card">
-    <h2 class="editable">Select Workout Day</h2>
-    <select id="daySelect" onchange="loadTemplate()">
-      <option value="arms">Day 1 — Arms & Delts</option>
-      <option value="upper">Day 2 — Mixed Upper</option>
-      <option value="priority">Priority Day — Arms & Abs</option>
-    </select>
+    <h2 class="editable">Workout Days</h2>
+    <select id="daySelect" onchange="loadTemplateFromCurrentDay()"></select>
+    <button onclick="openWorkoutTemplateEditor()" style="width:auto;margin-top:8px;font-size:13px;">
+      Edit Workout Days (Admin)
+    </button>
   </div>
 
   <div class="card">
-    <h2 class="editable">Exercises</h2>
+    <h2 class="editable">Exercises for This Session</h2>
     <div id="exerciseList"></div>
     <button onclick="guardedAddExercise()">Add Exercise</button>
   </div>
@@ -288,7 +318,7 @@ details summary {
 
 <!-- -------------------- CALENDAR TAB -------------------- -->
 <div id="calendar" class="container hidden">
-  <h1 class="editable">Gym Calendar</h1>
+  <h1 class="editable">📅 Gym Calendar</h1>
 
   <div style="text-align:center;">
     <button onclick="prevMonth()">◀</button>
@@ -304,14 +334,47 @@ details summary {
   <div class="calendar-grid" id="calendarGrid"></div>
 
   <div class="card">
-    <h2 class="editable">Details</h2>
+    <h2 class="editable">Day Details</h2>
     <div id="calendarDetails"></div>
   </div>
 </div>
 
+<!-- -------------------- ACTIVITY TAB -------------------- -->
+<div id="activity" class="container hidden">
+  <h1 class="editable">📈 Activity & Trends</h1>
+
+  <div class="card">
+    <h2 class="editable">Activity Calendar</h2>
+    <div style="text-align:center;">
+      <button onclick="activityPrevMonth()">◀</button>
+      <span id="activityMonthLabel"></span>
+      <button onclick="activityNextMonth()">▶</button>
+    </div>
+    <div class="calendar-day-labels">
+      <div>Sun</div><div>Mon</div><div>Tue</div>
+      <div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
+    <div class="calendar-grid" id="activityCalendarGrid"></div>
+  </div>
+
+  <div id="activitySettingsCard" class="card hidden">
+    <h2>⚙️ Activity Settings (Admin)</h2>
+    <p class="small-label">Choose which stats you want to see below.</p>
+    <label><input type="checkbox" id="prefGym"> Gym frequency & comparison</label>
+    <label><input type="checkbox" id="prefCalories"> Weekly calories vs maintenance</label>
+    <label><input type="checkbox" id="prefProtein"> Weekly protein intake</label>
+    <label><input type="checkbox" id="prefWeight"> Weight trend & projection</label>
+    <button onclick="saveActivityPrefs()" style="width:auto;font-size:14px;margin-top:8px;">
+      Save Activity Settings
+    </button>
+  </div>
+
+  <div id="activityWidgets" class="widget-grid"></div>
+</div>
+
 <!-- -------------------- NUTRITION TAB -------------------- -->
 <div id="nutrition" class="container hidden">
-  <h1 class="editable">Nutrition Tracker</h1>
+  <h1 class="editable">🍽️ Nutrition Tracker</h1>
 
   <div class="card">
     <h2 class="editable">Daily Intake</h2>
@@ -325,14 +388,45 @@ details summary {
   </div>
 
   <div class="card">
+    <h2 class="editable">Goals (Admin)</h2>
+    <p class="small-label">Set maintenance calories and macro targets for stats on the Activity page.</p>
+    <input id="goalMaintenance" type="number" placeholder="Maintenance Calories (kcal)">
+    <input id="goalPro" type="number" placeholder="Daily Protein Target (g)">
+    <input id="goalCarb" type="number" placeholder="Daily Carbs Target (g)">
+    <input id="goalFat" type="number" placeholder="Daily Fat Target (g)">
+    <button onclick="guardedSaveGoals()">Save Goals</button>
+  </div>
+
+  <div class="card">
     <h2 class="editable">History</h2>
     <div id="nutritionLog"></div>
   </div>
 </div>
 
+<!-- -------------------- WEIGHT TAB -------------------- -->
+<div id="weight" class="container hidden">
+  <h1 class="editable">⚖️ Weight Log</h1>
+
+  <div class="card">
+    <h2 class="editable">Record Weight</h2>
+    <input id="weightDate" type="date">
+    <input id="weightValue" type="number" step="0.1" placeholder="Weight (kg)">
+    <button onclick="guardedSaveWeight()">Save Weight</button>
+  </div>
+
+  <div class="card">
+    <h2 class="editable">Weight Entries</h2>
+    <div id="weightLog"></div>
+  </div>
+
+  <p class="small-label" style="padding-left:15px;">
+    Weight trend chart & projection are shown on the Activity page.
+  </p>
+</div>
+
 <!-- -------------------- COUNTDOWN TAB -------------------- -->
 <div id="countdown" class="container hidden">
-  <h1 class="editable">Countdowns</h1>
+  <h1 class="editable">🗓️ Countdowns</h1>
 
   <div class="card">
     <h2 class="editable">Add Countdown</h2>
@@ -395,7 +489,21 @@ details summary {
   </div>
 </div>
 
-<!-- -------------------- SCRIPT -------------------- -->
+<!-- -------------------- WORKOUT TEMPLATE EDITOR OVERLAY -------------------- -->
+<div id="workoutEditOverlay" class="overlay">
+  <div class="overlay-card" style="max-height:90vh;overflow:auto;">
+    <div class="overlay-header">
+      <h3>Edit Workout Days</h3>
+      <button style="width:auto;background:#1f2937;padding:6px 10px;font-size:13px;"
+              onclick="closeWorkoutTemplateEditor()">X</button>
+    </div>
+    <p class="overlay-help">Admin mode only. Edit day names and default exercises. Changes affect future sessions.</p>
+    <div id="workoutTemplateEditorBody"></div>
+    <button onclick="addWorkoutDay()" style="width:auto;font-size:14px;">+ Add Workout Day</button>
+    <button onclick="saveWorkoutTemplates()" style="width:auto;font-size:14px;margin-top:8px;">Save Templates</button>
+  </div>
+</div>
+
 <script>
 /* -------------------- HELPERS -------------------- */
 function todayISO() {
@@ -406,13 +514,33 @@ function todayISO() {
   return `${y}-${m}-${day}`;
 }
 
+function parseISO(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function getMonthKey(year, monthIndex) {
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+}
+
+function getWeekRange(dateStr) {
+  const d = parseISO(dateStr);
+  const day = d.getDay(); // 0=Sun
+  const start = new Date(d);
+  start.setDate(d.getDate() - day);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const toISO = d2 => `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, "0")}-${String(d2.getDate()).padStart(2, "0")}`;
+  return { startISO: toISO(start), endISO: toISO(end) };
+}
+
 /* -------------------- LOGIN & ADMIN STATE -------------------- */
 let loggedIn = false;
 let adminEnabled = false;
 
 function loginButtonClick() {
   if (loggedIn) {
-    // Logout flow
+    // Logout
     loggedIn = false;
     exitAdminMode(true);
     document.getElementById("loginBtn").textContent = "Log in";
@@ -458,7 +586,7 @@ function submitLogin() {
     document.getElementById("loginBtn").textContent = "Log out";
     document.getElementById("adminBtn").disabled = false;
     closeLoginOverlay();
-    alert("Logged in. You can now add/edit workouts, nutrition and countdowns. Use Admin for label editing.");
+    alert("Logged in. You can now add/edit data. Use Admin to edit labels and advanced options.");
   } else {
     alert("Incorrect login.");
   }
@@ -482,7 +610,16 @@ function enterAdminMode() {
     el.setAttribute("contenteditable", "true");
   });
   document.getElementById("adminBtn").textContent = "Exit Admin";
-  alert("Admin mode enabled. Tap any highlighted text to edit.");
+
+  // Show activity settings card
+  document.getElementById("activitySettingsCard").classList.remove("hidden");
+  drawSessions();
+  drawNutrition();
+  drawCountdowns();
+  drawWeights();
+  renderCalendarDetails();
+  renderActivity();
+  alert("Admin mode enabled. Tap any highlighted text to edit. Extra delete/settings options are now visible.");
 }
 
 function exitAdminMode(silent = false) {
@@ -491,12 +628,20 @@ function exitAdminMode(silent = false) {
     el.removeAttribute("contenteditable");
   });
   document.getElementById("adminBtn").textContent = "Admin";
+  document.getElementById("activitySettingsCard").classList.add("hidden");
+
+  drawSessions();
+  drawNutrition();
+  drawCountdowns();
+  drawWeights();
+  renderCalendarDetails();
+  renderActivity();
   if (!silent) {
     alert("Admin mode disabled.");
   }
 }
 
-/* Guard helpers: block changes when not logged in */
+/* Guard helpers */
 function ensureLoggedIn() {
   if (!loggedIn) {
     alert("Log in to edit or add data.");
@@ -505,9 +650,21 @@ function ensureLoggedIn() {
   return true;
 }
 
+function ensureAdminMode() {
+  if (!loggedIn) {
+    alert("Log in first.");
+    return false;
+  }
+  if (!adminEnabled) {
+    alert("Enable Admin mode to modify templates or delete data.");
+    return false;
+  }
+  return true;
+}
+
 /* -------------------- NAVIGATION -------------------- */
 function showTab(id) {
-  const tabs = ["workout", "calendar", "nutrition", "countdown"];
+  const tabs = ["workout", "calendar", "activity", "nutrition", "weight", "countdown"];
   tabs.forEach(tab => {
     document.getElementById(tab).classList.add("hidden");
     const btn = document.getElementById("tabBtn-" + tab);
@@ -520,34 +677,80 @@ function showTab(id) {
   if (id === "calendar") {
     renderCalendar();
     renderCalendarDetails();
+  } else if (id === "activity") {
+    renderActivity();
   }
 }
 
-/* -------------------- WORKOUT TEMPLATES -------------------- */
-const templates = {
-  arms: [
-    "Barbell Curls", "Hammer Curls", "Tricep Pushdowns",
-    "Skullcrushers", "Lateral Raises", "Rear Delt Fly",
-    "Shrugs", "Cable Crunch", "Hanging Leg Raise"
-  ],
-  upper: [
-    "Bench Press", "Incline Dumbbell Press", "Lat Pulldown",
-    "Seated Row", "Face Pulls", "Biceps Finisher", "Ab Wheel"
-  ],
-  priority: [
-    "Biceps Curls", "Triceps Rope", "Overhead Extensions",
-    "Hanging Leg Raise", "Cable Crunch"
-  ]
-};
+/* -------------------- STATE & STORAGE -------------------- */
+let sessions = JSON.parse(localStorage.getItem("sessions_v3") || "[]");
+let nutritionEntries = JSON.parse(localStorage.getItem("nutrition_v3") || "[]");
+let countdowns = JSON.parse(localStorage.getItem("countdowns_v3") || "[]");
+let weights = JSON.parse(localStorage.getItem("weights_v1") || "[]");
 
-function loadTemplate() {
-  const day = document.getElementById("daySelect").value;
-  const list = document.getElementById("exerciseList");
-  list.innerHTML = "";
-  templates[day].forEach(name => addExerciseRaw(name));
+let goals = JSON.parse(localStorage.getItem("goals_v1") || "null");
+if (!goals) {
+  goals = { maintenance: null, pro: null, carb: null, fat: null };
 }
 
-/* raw addExercise with no login guard, used by template loader */
+/* Workout templates: editable */
+const defaultWorkoutTemplates = [
+  { id: "arms", name: "Day 1 — Arms & Delts", exercises: [
+      "Barbell Curls", "Hammer Curls", "Tricep Pushdowns",
+      "Skullcrushers", "Lateral Raises", "Rear Delt Fly",
+      "Shrugs", "Cable Crunch", "Hanging Leg Raise"
+    ]},
+  { id: "upper", name: "Day 2 — Mixed Upper", exercises: [
+      "Bench Press", "Incline Dumbbell Press", "Lat Pulldown",
+      "Seated Row", "Face Pulls", "Biceps Finisher", "Ab Wheel"
+    ]},
+  { id: "priority", name: "Priority Day — Arms & Abs", exercises: [
+      "Biceps Curls", "Triceps Rope", "Overhead Extensions",
+      "Hanging Leg Raise", "Cable Crunch"
+    ]}
+];
+
+let workoutTemplates = JSON.parse(localStorage.getItem("workoutTemplates_v1") || "null");
+if (!workoutTemplates || !Array.isArray(workoutTemplates) || workoutTemplates.length === 0) {
+  workoutTemplates = JSON.parse(JSON.stringify(defaultWorkoutTemplates));
+}
+
+/* Activity prefs */
+let activityPrefs = JSON.parse(localStorage.getItem("activityPrefs_v1") || "null");
+if (!activityPrefs) {
+  activityPrefs = {
+    showGymFrequency: true,
+    showCalories: true,
+    showProtein: true,
+    showWeight: true
+  };
+}
+
+/* -------------------- WORKOUT: TEMPLATES & SESSION ENTRY -------------------- */
+
+function populateWorkoutDaySelect() {
+  const sel = document.getElementById("daySelect");
+  sel.innerHTML = "";
+  workoutTemplates.forEach(t => {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = t.name;
+    sel.appendChild(opt);
+  });
+}
+
+function getCurrentTemplate() {
+  const id = document.getElementById("daySelect").value;
+  return workoutTemplates.find(t => t.id === id) || workoutTemplates[0];
+}
+
+function loadTemplateFromCurrentDay() {
+  const tmpl = getCurrentTemplate();
+  const list = document.getElementById("exerciseList");
+  list.innerHTML = "";
+  tmpl.exercises.forEach(name => addExerciseRaw(name));
+}
+
 function addExerciseRaw(name = "") {
   const id = "ex-" + (Date.now() + Math.random());
   const wrapper = document.createElement("div");
@@ -569,7 +772,7 @@ function addExerciseRaw(name = "") {
   document.getElementById("exerciseList").appendChild(wrapper);
 }
 
-/* guarded addExercise: only via button */
+/* Guarded wrappers for exercise editing in session */
 function guardedAddExercise() {
   if (!ensureLoggedIn()) return;
   addExerciseRaw("");
@@ -605,9 +808,11 @@ function addSetToExercise(exId) {
   container.appendChild(row);
 }
 
-/* -------------------- SESSION SAVE & CALENDAR ASSIGN -------------------- */
+/* Save session & assign date */
 let pendingSession = null;
-let sessions = JSON.parse(localStorage.getItem("sessions_v3") || "[]");
+let assignYear, assignMonth;
+let calYear, calMonth, selectedDate;
+let activityYear, activityMonth, activitySelectedDate;
 
 function guardedSaveSession() {
   if (!ensureLoggedIn()) return;
@@ -628,7 +833,6 @@ function saveSession() {
       const rest = row.querySelector(".set-rest").value;
       const note = row.querySelector(".set-note").value;
       if (!(w || r || rest || note)) return;
-
       sets.push({
         setNumber: idx + 1,
         weight: w,
@@ -642,15 +846,16 @@ function saveSession() {
   });
 
   if (exercises.length === 0) {
-    alert("Please add at least one exercise (with a name) and optionally sets before saving.");
+    alert("Please add at least one exercise (with a name) before saving.");
     return;
   }
 
-  const templateKey = document.getElementById("daySelect").value;
+  const tmpl = getCurrentTemplate();
 
   pendingSession = {
     id: Date.now().toString(),
-    template: templateKey,
+    templateId: tmpl.id,
+    templateName: tmpl.name,
     createdAt: new Date().toISOString(),
     date: null,
     exercises
@@ -659,20 +864,7 @@ function saveSession() {
   openAssignOverlay();
 }
 
-/* ------------ Overlay calendar state ------------ */
-let assignYear, assignMonth;   // overlay
-let calYear, calMonth;        // main calendar
-let selectedDate;             // currently selected date on calendar tab
-
-function initCalendarState() {
-  const today = new Date();
-  calYear = today.getFullYear();
-  calMonth = today.getMonth();
-  selectedDate = todayISO();
-  assignYear = calYear;
-  assignMonth = calMonth;
-}
-
+/* -------------------- ASSIGN OVERLAY -------------------- */
 function openAssignOverlay() {
   const overlay = document.getElementById("assignOverlay");
   overlay.style.display = "flex";
@@ -746,28 +938,76 @@ function assignSessionToDay(year, month, day) {
   localStorage.setItem("sessions_v3", JSON.stringify(sessions));
 
   selectedDate = dateStr;
+  activitySelectedDate = dateStr;
   pendingSession = null;
   document.getElementById("assignOverlay").style.display = "none";
 
   drawSessions();
   renderCalendar();
   renderCalendarDetails();
+  renderActivity();
 
   alert("Session saved for " + dateStr);
 }
 
+/* -------------------- DELETE FUNCTIONS (ADMIN) -------------------- */
+function deleteSessionById(id) {
+  if (!ensureAdminMode()) return;
+  let list = JSON.parse(localStorage.getItem("sessions_v3") || "[]");
+  list = list.filter(s => s.id !== id);
+  localStorage.setItem("sessions_v3", JSON.stringify(list));
+  sessions = list;
+  drawSessions();
+  renderCalendar();
+  renderCalendarDetails();
+  renderActivity();
+}
+
+function deleteNutritionByIndex(index) {
+  if (!ensureAdminMode()) return;
+  let list = JSON.parse(localStorage.getItem("nutrition_v3") || "[]");
+  if (index < 0 || index >= list.length) return;
+  list.splice(index, 1);
+  localStorage.setItem("nutrition_v3", JSON.stringify(list));
+  nutritionEntries = list;
+  drawNutrition();
+  renderCalendarDetails();
+  renderActivity();
+}
+
+function deleteCountdownByIndex(index) {
+  if (!ensureAdminMode()) return;
+  let list = JSON.parse(localStorage.getItem("countdowns_v3") || "[]");
+  if (index < 0 || index >= list.length) return;
+  list.splice(index, 1);
+  localStorage.setItem("countdowns_v3", JSON.stringify(list));
+  countdowns = list;
+  drawCountdowns();
+}
+
+function deleteWeightByIndex(index) {
+  if (!ensureAdminMode()) return;
+  let list = JSON.parse(localStorage.getItem("weights_v1") || "[]");
+  if (index < 0 || index >= list.length) return;
+  list.splice(index, 1);
+  localStorage.setItem("weights_v1", JSON.stringify(list));
+  weights = list;
+  drawWeights();
+  renderActivity();
+}
+
 /* -------------------- DRAW SESSIONS LIST -------------------- */
 function drawSessions() {
-  const log = [...sessions];
   const box = document.getElementById("sessionLog");
   box.innerHTML = "";
 
-  if (log.length === 0) {
+  if (!sessions || sessions.length === 0) {
     box.innerHTML = "<p>No sessions logged yet.</p>";
     return;
   }
 
-  log.sort((a,b) => (a.date || "").localeCompare(b.date || ""));
+  const log = [...sessions];
+  log.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   log.reverse().forEach(s => {
     const dateLabel = s.date || "(no date)";
     const exHtml = s.exercises.map(ex => {
@@ -781,18 +1021,24 @@ function drawSessions() {
       return `<details><summary>${ex.name}</summary><div style="margin-top:4px;">${sets}</div></details>`;
     }).join("<br>");
 
+    const deleteBtnHtml = adminEnabled
+      ? `<button type="button" style="width:auto;background:#ef4444;padding:4px 10px;font-size:12px;float:right;margin:0;"
+                onclick="deleteSessionById('${s.id}')">Delete</button>`
+      : "";
+
     box.innerHTML += `
       <div class="log-item">
-        <b>${dateLabel}</b><br>
-        Template: ${s.template}<br><br>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div><b>${dateLabel}</b><br><span class="small-label">${s.templateName || ""}</span></div>
+          ${deleteBtnHtml}
+        </div>
         ${exHtml}
       </div>
     `;
   });
 }
 
-/* -------------------- MAIN CALENDAR (TAB) -------------------- */
-
+/* -------------------- MAIN CALENDAR TAB -------------------- */
 function renderCalendar() {
   const grid = document.getElementById("calendarGrid");
   grid.innerHTML = "";
@@ -804,9 +1050,7 @@ function renderCalendar() {
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
-  const gymDates = new Set(
-    sessions.filter(s => s.date).map(s => s.date)
-  );
+  const gymDates = new Set(sessions.filter(s => s.date).map(s => s.date));
 
   for (let i = 0; i < firstDay; i++) {
     grid.appendChild(document.createElement("div"));
@@ -867,8 +1111,7 @@ function renderCalendarDetails() {
   if (!selectedDate) selectedDate = todayISO();
 
   const daySessions = sessions.filter(s => s.date === selectedDate);
-  const nutList = JSON.parse(localStorage.getItem("nutrition_v3") || "[]");
-  const nut = nutList.find(n => n.date === selectedDate);
+  const nut = nutritionEntries.find(n => n.date === selectedDate);
 
   let html = `<h3>Details for ${selectedDate}</h3>`;
 
@@ -882,7 +1125,7 @@ function renderCalendarDetails() {
     html += `<p><b>Gym sessions:</b></p>`;
     daySessions.forEach(s => {
       html += `<div class="log-item" style="margin-bottom:8px;">`;
-      html += `<div class="small-label">Template: ${s.template}</div>`;
+      html += `<div class="small-label">${s.templateName || ""}</div>`;
       s.exercises.forEach(ex => {
         if (!ex.sets || ex.sets.length === 0) {
           html += `<div>${ex.name}</div>`;
@@ -925,40 +1168,67 @@ function saveNutrition() {
   const dateVal = document.getElementById("nutDate").value || todayISO();
   const entry = {
     date: dateVal,
-    cal: document.getElementById("cal").value,
-    pro: document.getElementById("pro").value,
-    carb: document.getElementById("carb").value,
-    fat: document.getElementById("fat").value
+    cal: Number(document.getElementById("cal").value || 0),
+    pro: Number(document.getElementById("pro").value || 0),
+    carb: Number(document.getElementById("carb").value || 0),
+    fat: Number(document.getElementById("fat").value || 0)
   };
 
-  const list = JSON.parse(localStorage.getItem("nutrition_v3") || "[]");
-  list.push(entry);
-  localStorage.setItem("nutrition_v3", JSON.stringify(list));
+  nutritionEntries.push(entry);
+  localStorage.setItem("nutrition_v3", JSON.stringify(nutritionEntries));
   drawNutrition();
 
   if (selectedDate === dateVal) {
     renderCalendarDetails();
   }
+  renderActivity();
 }
 
 function drawNutrition() {
-  const list = JSON.parse(localStorage.getItem("nutrition_v3") || "[]");
+  const list = nutritionEntries;
   const box = document.getElementById("nutritionLog");
 
   box.innerHTML = "";
-  if (list.length === 0) {
+  if (!list || list.length === 0) {
     box.innerHTML = "<p>No nutrition entries yet.</p>";
     return;
   }
 
-  list.slice().reverse().forEach(e => {
+  list.forEach((e, index) => {
+    const deleteBtnHtml = adminEnabled
+      ? `<button type="button" style="width:auto;background:#ef4444;padding:4px 10px;font-size:12px;float:right;margin:0;"
+                onclick="deleteNutritionByIndex(${index})">Delete</button>`
+      : "";
+
     box.innerHTML += `
       <div class="log-item">
-        <b>${e.date}</b><br>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <b>${e.date}</b>
+          ${deleteBtnHtml}
+        </div>
         ${e.cal} kcal — ${e.pro}g P / ${e.carb}g C / ${e.fat}g F
       </div>
     `;
   });
+}
+
+/* Goals (maintenance, macros) */
+function guardedSaveGoals() {
+  if (!ensureAdminMode()) return;
+  goals.maintenance = Number(document.getElementById("goalMaintenance").value || 0) || null;
+  goals.pro = Number(document.getElementById("goalPro").value || 0) || null;
+  goals.carb = Number(document.getElementById("goalCarb").value || 0) || null;
+  goals.fat = Number(document.getElementById("goalFat").value || 0) || null;
+  localStorage.setItem("goals_v1", JSON.stringify(goals));
+  alert("Goals saved.");
+  renderActivity();
+}
+
+function populateGoalInputs() {
+  document.getElementById("goalMaintenance").value = goals.maintenance || "";
+  document.getElementById("goalPro").value = goals.pro || "";
+  document.getElementById("goalCarb").value = goals.carb || "";
+  document.getElementById("goalFat").value = goals.fat || "";
 }
 
 /* -------------------- COUNTDOWNS -------------------- */
@@ -976,33 +1246,40 @@ function addCountdown() {
     return;
   }
 
-  const list = JSON.parse(localStorage.getItem("countdowns_v3") || "[]");
-  list.push({ name, date });
-  localStorage.setItem("countdowns_v3", JSON.stringify(list));
+  countdowns.push({ name, date });
+  localStorage.setItem("countdowns_v3", JSON.stringify(countdowns));
 
   drawCountdowns();
 }
 
 function drawCountdowns() {
-  const list = JSON.parse(localStorage.getItem("countdowns_v3") || "[]");
+  const list = countdowns;
   const box = document.getElementById("countList");
   box.innerHTML = "";
 
-  if (list.length === 0) {
+  if (!list || list.length === 0) {
     box.innerHTML = "<p>No countdowns yet.</p>";
     return;
   }
 
   const today = new Date();
 
-  list.forEach(c => {
+  list.forEach((c, index) => {
     const diff = Math.floor(
       (new Date(c.date) - today) / (1000 * 60 * 60 * 24)
     );
 
+    const deleteBtnHtml = adminEnabled
+      ? `<button type="button" style="width:auto;background:#ef4444;padding:4px 10px;font-size:12px;float:right;margin:0;"
+                onclick="deleteCountdownByIndex(${index})">Delete</button>`
+      : "";
+
     box.innerHTML += `
       <div class="log-item">
-        <b>${c.name}</b><br>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <b>${c.name}</b>
+          ${deleteBtnHtml}
+        </div>
         ${c.date}<br>
         ${diff} day${Math.abs(diff) === 1 ? "" : "s"} remaining
       </div>
@@ -1010,22 +1287,478 @@ function drawCountdowns() {
   });
 }
 
+/* -------------------- WEIGHT -------------------- */
+function guardedSaveWeight() {
+  if (!ensureLoggedIn()) return;
+  saveWeight();
+}
+
+function saveWeight() {
+  const dateVal = document.getElementById("weightDate").value || todayISO();
+  const weightVal = Number(document.getElementById("weightValue").value || 0);
+  if (!weightVal) {
+    alert("Please enter a weight.");
+    return;
+  }
+  weights.push({ date: dateVal, weight: weightVal });
+  localStorage.setItem("weights_v1", JSON.stringify(weights));
+  drawWeights();
+  renderActivity();
+}
+
+function drawWeights() {
+  const list = weights;
+  const box = document.getElementById("weightLog");
+  box.innerHTML = "";
+
+  if (!list || list.length === 0) {
+    box.innerHTML = "<p>No weight entries yet.</p>";
+    return;
+  }
+
+  list.forEach((w, index) => {
+    const deleteBtnHtml = adminEnabled
+      ? `<button type="button" style="width:auto;background:#ef4444;padding:4px 10px;font-size:12px;float:right;margin:0;"
+                onclick="deleteWeightByIndex(${index})">Delete</button>`
+      : "";
+    box.innerHTML += `
+      <div class="log-item">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <b>${w.date}</b>
+          ${deleteBtnHtml}
+        </div>
+        ${w.weight} kg
+      </div>
+    `;
+  });
+}
+
+/* -------------------- ACTIVITY TAB -------------------- */
+function renderActivity() {
+  renderActivityCalendar();
+  renderActivitySettingsUI();
+  renderActivityWidgets();
+}
+
+/* Activity calendar uses activityYear/activityMonth/activitySelectedDate */
+function renderActivityCalendar() {
+  const grid = document.getElementById("activityCalendarGrid");
+  grid.innerHTML = "";
+
+  const monthName = new Date(activityYear, activityMonth, 1)
+    .toLocaleString("default", { month: "long" });
+  document.getElementById("activityMonthLabel").innerText = `${monthName} ${activityYear}`;
+
+  const firstDay = new Date(activityYear, activityMonth, 1).getDay();
+  const daysInMonth = new Date(activityYear, activityMonth + 1, 0).getDate();
+
+  // Any entries: sessions, nutrition, weight
+  const entryDates = new Set([
+    ...sessions.map(s => s.date).filter(Boolean),
+    ...nutritionEntries.map(n => n.date).filter(Boolean),
+    ...weights.map(w => w.date).filter(Boolean)
+  ]);
+
+  for (let i = 0; i < firstDay; i++) {
+    grid.appendChild(document.createElement("div"));
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement("div");
+    cell.className = "calendar-day";
+    cell.textContent = d;
+
+    const dateStr = [
+      activityYear,
+      String(activityMonth + 1).padStart(2, "0"),
+      String(d).padStart(2, "0")
+    ].join("-");
+
+    if (entryDates.has(dateStr)) {
+      cell.classList.add("activity-day-highlight");
+    }
+    if (activitySelectedDate === dateStr) {
+      cell.classList.add("selected");
+    }
+
+    cell.onclick = () => {
+      activitySelectedDate = dateStr;
+      renderActivity();
+    };
+
+    grid.appendChild(cell);
+  }
+}
+
+function activityNextMonth() {
+  activityMonth++;
+  if (activityMonth > 11) {
+    activityMonth = 0;
+    activityYear++;
+  }
+  renderActivity();
+}
+
+function activityPrevMonth() {
+  activityMonth--;
+  if (activityMonth < 0) {
+    activityMonth = 11;
+    activityYear--;
+  }
+  renderActivity();
+}
+
+/* Activity settings UI (admin chooses which widgets) */
+function renderActivitySettingsUI() {
+  const card = document.getElementById("activitySettingsCard");
+  if (adminEnabled) {
+    card.classList.remove("hidden");
+    document.getElementById("prefGym").checked = !!activityPrefs.showGymFrequency;
+    document.getElementById("prefCalories").checked = !!activityPrefs.showCalories;
+    document.getElementById("prefProtein").checked = !!activityPrefs.showProtein;
+    document.getElementById("prefWeight").checked = !!activityPrefs.showWeight;
+  } else {
+    card.classList.add("hidden");
+  }
+}
+
+function saveActivityPrefs() {
+  if (!ensureAdminMode()) return;
+  activityPrefs.showGymFrequency = document.getElementById("prefGym").checked;
+  activityPrefs.showCalories = document.getElementById("prefCalories").checked;
+  activityPrefs.showProtein = document.getElementById("prefProtein").checked;
+  activityPrefs.showWeight = document.getElementById("prefWeight").checked;
+  localStorage.setItem("activityPrefs_v1", JSON.stringify(activityPrefs));
+  alert("Activity settings saved.");
+  renderActivityWidgets();
+}
+
+/* Activity widgets rendering */
+function renderActivityWidgets() {
+  const box = document.getElementById("activityWidgets");
+  box.innerHTML = "";
+  if (!activitySelectedDate) activitySelectedDate = todayISO();
+
+  if (activityPrefs.showGymFrequency) {
+    box.appendChild(buildGymWidget());
+  }
+  if (activityPrefs.showCalories) {
+    box.appendChild(buildCaloriesWidget());
+  }
+  if (activityPrefs.showProtein) {
+    box.appendChild(buildProteinWidget());
+  }
+  if (activityPrefs.showWeight) {
+    box.appendChild(buildWeightWidget());
+  }
+}
+
+/* Helper: filter data by month or week */
+function filterSessionsByMonth(year, monthIndex) {
+  const key = getMonthKey(year, monthIndex);
+  return sessions.filter(s => s.date && s.date.startsWith(key));
+}
+
+function filterSessionsByPrevMonth(year, monthIndex) {
+  let y = year;
+  let m = monthIndex - 1;
+  if (m < 0) {
+    m = 11;
+    y = year - 1;
+  }
+  const key = getMonthKey(y, m);
+  return sessions.filter(s => s.date && s.date.startsWith(key));
+}
+
+function filterNutritionByWeek(range) {
+  return nutritionEntries.filter(n => n.date && n.date >= range.startISO && n.date <= range.endISO);
+}
+
+/* Gym frequency widget */
+function buildGymWidget() {
+  const card = document.createElement("div");
+  card.className = "card";
+  const thisMonthSessions = filterSessionsByMonth(activityYear, activityMonth);
+  const lastMonthSessions = filterSessionsByPrevMonth(activityYear, activityMonth);
+  const diff = thisMonthSessions.length - lastMonthSessions.length;
+  const direction = diff > 0 ? "up" : diff < 0 ? "down" : "the same as";
+  const diffAbs = Math.abs(diff);
+
+  card.innerHTML = `
+    <h3>Gym Frequency</h3>
+    <p>You’ve logged <b>${thisMonthSessions.length}</b> session(s) this month.</p>
+    <p>This is ${diffAbs} ${diffAbs === 1 ? "session" : "sessions"} ${direction} last month.</p>
+  `;
+  return card;
+}
+
+/* Calories widget */
+function buildCaloriesWidget() {
+  const card = document.createElement("div");
+  card.className = "card";
+  const d = activitySelectedDate || todayISO();
+  const range = getWeekRange(d);
+  const weekEntries = filterNutritionByWeek(range);
+  const totalCals = weekEntries.reduce((sum, e) => sum + (e.cal || 0), 0);
+
+  let maintenanceInfo = "<p>No maintenance calories set.</p>";
+  if (goals.maintenance) {
+    const maintenanceWeek = goals.maintenance * 7;
+    const diff = totalCals - maintenanceWeek;
+    const status = diff > 0 ? "surplus" : diff < 0 ? "deficit" : "at maintenance";
+    maintenanceInfo = `
+      <p>Weekly target (maintenance × 7): <b>${maintenanceWeek.toLocaleString()}</b> kcal</p>
+      <p>You’re in a <b>${Math.abs(diff).toLocaleString()} kcal</b> ${status} this week.</p>
+    `;
+  }
+
+  card.innerHTML = `
+    <h3>Weekly Calories</h3>
+    <p>Week of <b>${range.startISO}</b> to <b>${range.endISO}</b></p>
+    <p>Total logged: <b>${totalCals.toLocaleString()}</b> kcal</p>
+    ${maintenanceInfo}
+  `;
+  return card;
+}
+
+/* Protein widget */
+function buildProteinWidget() {
+  const card = document.createElement("div");
+  card.className = "card";
+  const d = activitySelectedDate || todayISO();
+  const range = getWeekRange(d);
+  const weekEntries = filterNutritionByWeek(range);
+  const totalPro = weekEntries.reduce((sum, e) => sum + (e.pro || 0), 0);
+  const daysWithData = new Set(weekEntries.map(e => e.date)).size;
+  const avgPerDay = daysWithData ? (totalPro / daysWithData).toFixed(1) : 0;
+
+  let goalLine = "";
+  if (goals.pro) {
+    goalLine = `<p>Daily protein target: <b>${goals.pro} g</b></p>`;
+  }
+
+  card.innerHTML = `
+    <h3>Weekly Protein</h3>
+    <p>Week of <b>${range.startISO}</b> to <b>${range.endISO}</b></p>
+    <p>Total: <b>${totalPro.toFixed(1)}</b> g across <b>${daysWithData}</b> day(s).</p>
+    <p>Average on logged days: <b>${avgPerDay}</b> g/day.</p>
+    ${goalLine}
+  `;
+  return card;
+}
+
+/* Weight widget with simple SVG line chart + projection */
+function buildWeightWidget() {
+  const card = document.createElement("div");
+  card.className = "card";
+
+  if (!weights || weights.length === 0) {
+    card.innerHTML = `
+      <h3>Weight Trend</h3>
+      <p>No weight data yet.</p>
+    `;
+    return card;
+  }
+
+  const sorted = [...weights].sort((a, b) => a.date.localeCompare(b.date));
+  const minW = Math.min(...sorted.map(w => w.weight));
+  const maxW = Math.max(...sorted.map(w => w.weight));
+  const span = maxW - minW || 1;
+  const n = sorted.length;
+  const width = 320;
+  const height = 180;
+  const padding = 20;
+
+  const points = sorted.map((w, i) => {
+    const x = n === 1 ? width / 2 : padding + (i / (n - 1)) * (width - 2 * padding);
+    const y = height - padding - ((w.weight - minW) / span) * (height - 2 * padding);
+    return { x, y };
+  });
+
+  const polyPoints = points.map(p => `${p.x},${p.y}`).join(" ");
+
+  let projectionText = "";
+  if (n >= 3) {
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const days = (parseISO(last.date) - parseISO(first.date)) / (1000 * 60 * 60 * 24);
+    if (days >= 7) {
+      const slopePerDay = (last.weight - first.weight) / days;
+      const slopePerWeek = slopePerDay * 7;
+      const projected30 = last.weight + slopePerDay * 30;
+      projectionText = `
+        <p>Approx change rate: <b>${slopePerWeek.toFixed(2)} kg/week</b>.</p>
+        <p>Projected weight in 30 days (if trend continues): <b>${projected30.toFixed(1)} kg</b>.</p>
+      `;
+    }
+  }
+
+  const svg = `
+    <svg id="weightChart" viewBox="0 0 ${width} ${height}">
+      <polyline fill="none" stroke="#22c55e" stroke-width="2"
+                points="${polyPoints}" />
+      ${points.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#22c55e" />`).join("")}
+    </svg>
+  `;
+
+  card.innerHTML = `
+    <h3>Weight Trend</h3>
+    ${svg}
+    <p class="small-label">Min: ${minW.toFixed(1)} kg · Max: ${maxW.toFixed(1)} kg</p>
+    ${projectionText}
+  `;
+  return card;
+}
+
+/* -------------------- WORKOUT TEMPLATE EDITOR (ADMIN) -------------------- */
+function openWorkoutTemplateEditor() {
+  if (!ensureAdminMode()) return;
+  const body = document.getElementById("workoutTemplateEditorBody");
+  body.innerHTML = "";
+
+  workoutTemplates.forEach((day, dayIndex) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "card";
+    wrapper.style.margin = "10px 0";
+
+    const exercisesHtml = day.exercises.map((ex, exIndex) => `
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+        <input data-day-index="${dayIndex}" data-ex-index="${exIndex}"
+               class="tmpl-exercise-input"
+               value="${ex}" placeholder="Exercise name" style="flex:1;">
+        <button type="button"
+                style="width:auto;background:#ef4444;padding:4px 8px;font-size:11px;"
+                onclick="removeTemplateExercise(${dayIndex}, ${exIndex})">✕</button>
+      </div>
+    `).join("");
+
+    wrapper.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input data-day-index="${dayIndex}" class="tmpl-day-name"
+               value="${day.name}" placeholder="Day name" style="flex:1;">
+        <button type="button"
+                style="width:auto;background:#ef4444;padding:4px 8px;font-size:11px;"
+                onclick="removeWorkoutDay(${dayIndex})">Delete Day</button>
+      </div>
+      <div style="margin-top:6px;">
+        <b>Exercises:</b>
+        ${exercisesHtml || "<p class='small-label'>No exercises yet.</p>"}
+      </div>
+      <button type="button"
+              style="width:auto;margin-top:6px;font-size:12px;"
+              onclick="addTemplateExercise(${dayIndex})">+ Add Exercise</button>
+    `;
+    body.appendChild(wrapper);
+  });
+
+  document.getElementById("workoutEditOverlay").style.display = "flex";
+}
+
+function closeWorkoutTemplateEditor() {
+  document.getElementById("workoutEditOverlay").style.display = "none";
+}
+
+function addWorkoutDay() {
+  if (!ensureAdminMode()) return;
+  workoutTemplates.push({
+    id: "day-" + Date.now(),
+    name: "New Day",
+    exercises: []
+  });
+  openWorkoutTemplateEditor();
+}
+
+function removeWorkoutDay(index) {
+  if (!ensureAdminMode()) return;
+  workoutTemplates.splice(index, 1);
+  openWorkoutTemplateEditor();
+}
+
+function addTemplateExercise(dayIndex) {
+  if (!ensureAdminMode()) return;
+  workoutTemplates[dayIndex].exercises.push("New Exercise");
+  openWorkoutTemplateEditor();
+}
+
+function removeTemplateExercise(dayIndex, exIndex) {
+  if (!ensureAdminMode()) return;
+  workoutTemplates[dayIndex].exercises.splice(exIndex, 1);
+  openWorkoutTemplateEditor();
+}
+
+function saveWorkoutTemplates() {
+  if (!ensureAdminMode()) return;
+
+  // Read back names & exercises from inputs
+  const nameInputs = document.querySelectorAll(".tmpl-day-name");
+  nameInputs.forEach(input => {
+    const dayIndex = Number(input.getAttribute("data-day-index"));
+    workoutTemplates[dayIndex].name = input.value || workoutTemplates[dayIndex].name;
+  });
+
+  const exInputs = document.querySelectorAll(".tmpl-exercise-input");
+  // Reset exercises then refill to keep ordering
+  workoutTemplates.forEach(day => day.exercises = []);
+  exInputs.forEach(input => {
+    const dayIndex = Number(input.getAttribute("data-day-index"));
+    const exIndex = Number(input.getAttribute("data-ex-index"));
+    if (!workoutTemplates[dayIndex].exercises[exIndex]) {
+      workoutTemplates[dayIndex].exercises[exIndex] = input.value || "Exercise";
+    }
+  });
+
+  // Fix missing ids if any
+  workoutTemplates.forEach(day => {
+    if (!day.id) {
+      day.id = "day-" + Date.now() + Math.random();
+    }
+  });
+
+  localStorage.setItem("workoutTemplates_v1", JSON.stringify(workoutTemplates));
+  populateWorkoutDaySelect();
+  loadTemplateFromCurrentDay();
+  alert("Workout templates saved.");
+  closeWorkoutTemplateEditor();
+}
+
 /* -------------------- INIT -------------------- */
 function init() {
-  initCalendarState();
-  loadTemplate();          // pre-fill exercises
+  // Calendar & activity date state
+  const today = new Date();
+  calYear = today.getFullYear();
+  calMonth = today.getMonth();
+  selectedDate = todayISO();
+
+  activityYear = today.getFullYear();
+  activityMonth = today.getMonth();
+  activitySelectedDate = todayISO();
+
+  // Workout day select
+  populateWorkoutDaySelect();
+  loadTemplateFromCurrentDay();
+
+  // Nutrition goals inputs & logs
+  populateGoalInputs();
+  drawNutrition();
+
+  // Countdown & weight logs
+  drawCountdowns();
+  drawWeights();
+
+  // Sessions & calendar
   drawSessions();
   renderCalendar();
   renderCalendarDetails();
-  drawNutrition();
-  drawCountdowns();
 
+  // Activity
+  renderActivity();
+
+  // Default dates for forms
   const nutDateInput = document.getElementById("nutDate");
-  if (nutDateInput) {
-    nutDateInput.value = todayISO();
-  }
+  if (nutDateInput) nutDateInput.value = todayISO();
+  const weightDateInput = document.getElementById("weightDate");
+  if (weightDateInput) weightDateInput.value = todayISO();
 
-  // Start in read-only mode: admin disabled, login required for edits
   document.getElementById("adminBtn").disabled = true;
   document.getElementById("loginBtn").textContent = "Log in";
 }
